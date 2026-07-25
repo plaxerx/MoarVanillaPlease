@@ -1,30 +1,12 @@
--- Endless Engines - Stakes
--- Four tiers above Gold: Platinum, Titanium, Diamond, Legendary.
+-- Moar Vanilla Please - Stakes
 
--- 29x29, matching Balatro's own chips sheet exactly. Platinum/Titanium/Diamond are
--- recolours of the real chip sprite (same shape, rim notches and highlight ramp);
--- Legendary reuses the unused spare chip from the vanilla sheet.
 SMODS.Atlas{ key = 'eeng_chips', path = 'eeng_chips.png', px = 29, py = 29 }
 SMODS.Atlas{ key = 'eeng_stickers', path = 'eeng_stickers.png', px = 71, py = 95 }
 
 --============================================================
 -- Blind scaling
 --============================================================
--- Vanilla scales blinds through G.GAME.modifiers.scaling (White=1, Green=2, Purple=3),
--- which feeds SMODS.get_blind_amount(). Worth knowing before you retune this: the
--- vanilla curve does NOT extend gently. Pushing scaling to 4 and 5 gives roughly 100x
--- and 227x the base ante-8 requirement - vastly past the 5x / 8x we actually want.
---
--- So the new stakes keep Purple's scaling and layer an explicit multiplier on top.
--- The multiplier ramps in from 1x at ante 1 to its full value at ante 8, then keeps
--- compounding into Endless, which reads as a natural continuation of the curve rather
--- than a cliff. Ante 1 is pinned outright, because vanilla hardcodes it at 300.
---
--- Stakes stack (Legendary applies Diamond applies Titanium applies Platinum), so these
--- take the MAX rather than multiplying - otherwise Legendary would silently be 40x.
--- Balatro calls the GLOBAL get_blind_amount(), not SMODS.get_blind_amount. Wrapping the
--- SMODS table field alone never intercepted anything, which is why Ante 1 stubbornly
--- stayed at 300. Wrap the global (and keep the SMODS field in sync).
+
 local eeng_get_blind_amount = get_blind_amount
 
 -- EXACT blind requirements for antes 0-8, straight from the table. Antes 1-8 are not
@@ -33,9 +15,15 @@ local eeng_get_blind_amount = get_blind_amount
 --
 -- tier 4 = Platinum (and Titanium/Diamond, which inherit it), tier 5 = Legendary.
 local BLIND_TABLE = {
+<<<<<<< Updated upstream
     [4] = { [0] = 120, 350, 1100, 4000, 12000, 30000, 80000,  160000, 300000 },
     [5] = { [0] = 150, 400, 1200, 4800, 15000, 36000, 120000, 240000, 400000 },
     [6] = { [0] = 200, 500, 1500, 6000, 20000, 50000, 160000, 320000, 500000 },  -- Ascendant
+=======
+    [4] = { [0] = 100, 300, 1100, 4000, 12000, 30000, 80000,  160000, 300000 },  -- Platinum
+    [5] = { [0] = 120, 350, 1200, 4800, 15000, 36000, 120000, 240000, 400000 },  -- Legendary
+    [6] = { [0] = 150, 400, 1500, 6000, 20000, 50000, 160000, 320000, 500000 },  -- Ascendant
+>>>>>>> Stashed changes
 }
 
 -- Past ante 8 the vanilla curve takes over again, lifted by the ratio between our ante-8
@@ -65,19 +53,14 @@ function get_blind_amount(ante)
 end
 SMODS.get_blind_amount = get_blind_amount
 
--- Stakes stack (Legendary applies Diamond applies Titanium applies Platinum), so take the
--- HIGHEST tier rather than letting them compound.
 local function set_blinds(tier)
     local mods = G.GAME.modifiers
     mods.eeng_blind_tier = math.max(mods.eeng_blind_tier or 0, tier)
 end
 
 --============================================================
--- Diamond's boss cadence
+-- Boss cadence (Mythic): showdown Boss Blinds also land on multiples of 8
 --============================================================
--- Showdown bosses normally appear only on multiples of win_ante. Diamond moves the
--- win to ante 10, so this makes multiples of 8 ALSO showdown antes: the game is
--- briefly told win_ante is 8, which is exactly the condition the boss pool tests.
 local eeng_get_new_boss = get_new_boss
 function get_new_boss()
     local mods = G.GAME and G.GAME.modifiers
@@ -93,14 +76,6 @@ function get_new_boss()
     end
     return eeng_get_new_boss()
 end
-
--- KEY FORMAT, the hard way:
---   Our key 'platinum' is prefixed by SMODS to 'stake_eeng_platinum'.
---   applied_stakes / unlocked_stake entries must be those FULL keys, because SMODS
---   localizes every applied entry with localize{set='Stake', key=v, type='name_text'}
---   and Balatro keys Gold as 'stake_gold', not 'gold'. A bare key renders as ERROR.
---   Vanilla stakes get away with bare entries only because their loc_txt is empty, so
---   SMODS skips that builder entirely for them.
 
 --============================================================
 -- PLATINUM  - the requirement climbs harder
@@ -151,8 +126,10 @@ SMODS.Stake{
 }
 
 --============================================================
--- DIAMOND - the run doesn't end at 8
+-- DIAMOND - the vault gets tighter
 --============================================================
+-- Interest pays per $7 instead of vanilla's $5. The flag drives both the evaluate_round
+-- wrapper below and the hardcoded "/5" spots patched in lovely/mvp_patches.toml.
 SMODS.Stake{
     key = 'diamond',
     order = 11,
@@ -165,14 +142,14 @@ SMODS.Stake{
     colour = HEX('B0ECFC'),          -- icy cyan
     loc_txt = {},
     modifiers = function()
-        G.GAME.win_ante = 10
-        G.GAME.modifiers.eeng_boss_cadence = true
+        G.GAME.eeng_interest_7 = true
     end,
 }
 
 --============================================================
 -- LEGENDARY - the ceiling
 --============================================================
+
 SMODS.Stake{
     key = 'legendary',
     order = 12,
@@ -188,12 +165,9 @@ SMODS.Stake{
     end,
 }
 
-
 --============================================================
--- MYTHIC  - the vault gets tighter
+-- MYTHIC  - the run doesn't end at 8
 --============================================================
--- Interest pays per $5 in vanilla. At $7 the same pile earns less, so hoarding stops being
--- free money and starts being a decision.
 SMODS.Stake{
     key = 'mythic',
     order = 13,
@@ -206,10 +180,12 @@ SMODS.Stake{
     colour = HEX('7A3FB8'),
     loc_txt = {},
     modifiers = function()
-        G.GAME.eeng_mythic = true
+        G.GAME.win_ante = 10
+        G.GAME.modifiers.eeng_boss_cadence = true
     end,
 }
 
+<<<<<<< Updated upstream
 -- Balatro HARDCODES the $5 interest step: payout = interest_amount * floor(dollars / 5).
 -- So interest_amount is dollars-PER-$5, not the threshold - setting it to 7 paid $7 for
 -- every $5, which is the exact opposite of the intent. To actually earn per $7, set
@@ -221,6 +197,14 @@ G.FUNCS.evaluate_round = function(...)
         local steps = math.floor(d / 5)          -- what vanilla is about to multiply by
         local want  = math.floor(d / 7)          -- what we actually want to pay out
         G.GAME.interest_amount = (steps > 0) and (want / steps) or 0
+=======
+-- Diamond's $7 interest: hold interest_amount at 1 so the shop reads "1 interest per $7"
+-- (the "/5"->"/7" step itself is patched in lovely/mvp_patches.toml).
+local eeng_eval_round = G.FUNCS.evaluate_round
+G.FUNCS.evaluate_round = function(...)
+    if G.GAME and G.GAME.eeng_interest_7 then
+        G.GAME.interest_amount = 1
+>>>>>>> Stashed changes
     end
     return eeng_eval_round(...)
 end
@@ -249,6 +233,7 @@ SMODS.Stake{
 --============================================================
 -- ASCENDANT - the requirement climbs again
 --============================================================
+
 SMODS.Stake{
     key = 'ascendant',
     order = 15,

@@ -1,0 +1,60 @@
+# Moar Vanilla Please - lovely patches (Diamond $7 interest step, Mercy Rule blind display)
+#
+# Vanilla hardcodes the $5 interest step in three inline spots (the payout, the round-eval
+# row, and the shop indicator's "per $5" label). There is no SMODS/Lua seam for it, so the
+# only clean way to make Diamond pay + label per $7 is to patch those literals directly.
+#
+# Every patch is GATED on G.GAME.eeng_interest_7, so runs without it are byte-for-byte
+# vanilla. With interest_amount pinned to 1 (see stakes.lua) and interest_cap left at its
+# real voucher-driven value, the shop then reads "1 interest per $7 (N max)" where N = cap/5
+# (5 base, 10 with Seed Money, 20 with Money Tree) and the payout is min(N, floor($/7)).
+#
+# NB: lovely re-patches from the INSTALLED copy at game launch - a running game must be
+# restarted for this to take effect.
+
+[manifest]
+version = "1.0.0"
+priority = 10
+
+# --- payout (state_events.lua) ---
+[[patches]]
+[patches.regex]
+target = "functions/state_events.lua"
+pattern = 'dollars = dollars \+ G\.GAME\.interest_amount\*math\.min\(math\.floor\(G\.GAME\.dollars/5\), G\.GAME\.interest_cap/5\)'
+position = "at"
+payload = 'dollars = dollars + G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.eeng_interest_7 and 7 or 5)), G.GAME.interest_cap/5)'
+
+# --- round-eval interest row (state_events.lua) ---
+[[patches]]
+[patches.regex]
+target = "functions/state_events.lua"
+pattern = "dollars = G\\.GAME\\.interest_amount\\*math\\.min\\(math\\.floor\\(G\\.GAME\\.dollars/5\\), G\\.GAME\\.interest_cap/5\\)\\}\\)"
+position = "at"
+payload = "dollars = G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.eeng_interest_7 and 7 or 5)), G.GAME.interest_cap/5)})"
+
+# --- "reached interest cap" streak check (state_events.lua) ---
+[[patches]]
+[patches.regex]
+target = "functions/state_events.lua"
+pattern = 'if G\.GAME\.interest_amount\*math\.min\(math\.floor\(G\.GAME\.dollars/5\), G\.GAME\.interest_cap/5\) =='
+position = "at"
+payload = 'if G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.eeng_interest_7 and 7 or 5)), G.GAME.interest_cap/5) =='
+
+# --- shop interest indicator "per $5" -> "per $7" (common_events.lua) ---
+[[patches]]
+[patches.regex]
+target = "functions/common_events.lua"
+pattern = "key = 'interest', vars = \\{G\\.GAME\\.interest_amount, 5, G\\.GAME\\.interest_amount\\*G\\.GAME\\.interest_cap/5\\}"
+position = "at"
+payload = "key = 'interest', vars = {G.GAME.interest_amount, (G.GAME.eeng_interest_7 and 7 or 5), G.GAME.interest_amount*G.GAME.interest_cap/5}"
+
+# --- Mercy Rule mutation: show the halved Boss requirement on the blind-SELECT screen ---
+# The in-round halving is done in Lua (erratic.lua Blind:set_blind), but the select screen
+# computes the shown requirement inline here and never sees it. `type` is the blind slot
+# (Small/Big/Boss) in scope of create_UIBox_blind_choice. Gated on the mutation flag.
+[[patches]]
+[patches.regex]
+target = "functions/UI_definitions.lua"
+pattern = "local blind_amt = get_blind_amount\\(G\\.GAME\\.round_resets\\.blind_ante\\)\\*blind_choice\\.config\\.mult\\*G\\.GAME\\.starting_params\\.ante_scaling"
+position = "at"
+payload = "local blind_amt = get_blind_amount(G.GAME.round_resets.blind_ante)*blind_choice.config.mult*G.GAME.starting_params.ante_scaling*((G.GAME.modifiers and G.GAME.modifiers.eeng_mut_mercy and type == 'Boss') and 0.5 or 1)"
