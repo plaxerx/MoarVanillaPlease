@@ -9,25 +9,12 @@ SMODS.Atlas{ key = 'eeng_stickers', path = 'eeng_stickers.png', px = 71, py = 95
 
 local eeng_get_blind_amount = get_blind_amount
 
--- EXACT blind requirements for antes 0-8, straight from the table. Antes 1-8 are not
--- derived from anything - they're looked up. The old version scaled off the vanilla curve
--- and rounded, which is why the numbers stopped landing on clean hundreds.
---
--- tier 4 = Platinum (and Titanium/Diamond, which inherit it), tier 5 = Legendary.
 local BLIND_TABLE = {
-<<<<<<< Updated upstream
-    [4] = { [0] = 120, 350, 1100, 4000, 12000, 30000, 80000,  160000, 300000 },
-    [5] = { [0] = 150, 400, 1200, 4800, 15000, 36000, 120000, 240000, 400000 },
-    [6] = { [0] = 200, 500, 1500, 6000, 20000, 50000, 160000, 320000, 500000 },  -- Ascendant
-=======
     [4] = { [0] = 100, 300, 1100, 4000, 12000, 30000, 80000,  160000, 300000 },  -- Platinum
     [5] = { [0] = 120, 350, 1200, 4800, 15000, 36000, 120000, 240000, 400000 },  -- Legendary
     [6] = { [0] = 150, 400, 1500, 6000, 20000, 50000, 160000, 320000, 500000 },  -- Ascendant
->>>>>>> Stashed changes
 }
 
--- Past ante 8 the vanilla curve takes over again, lifted by the ratio between our ante-8
--- requirement and Purple's (200,000) - which is the scaling our stakes inherit.
 local PURPLE_ANTE8 = 200000
 
 -- TALISMAN: get_blind_amount hands back a BIG NUMBER (a table). Multiplying it is fine;
@@ -185,26 +172,12 @@ SMODS.Stake{
     end,
 }
 
-<<<<<<< Updated upstream
--- Balatro HARDCODES the $5 interest step: payout = interest_amount * floor(dollars / 5).
--- So interest_amount is dollars-PER-$5, not the threshold - setting it to 7 paid $7 for
--- every $5, which is the exact opposite of the intent. To actually earn per $7, set
--- interest_amount so the product lands on floor(dollars / 7).
-local eeng_eval_round = G.FUNCS.evaluate_round
-G.FUNCS.evaluate_round = function(...)
-    if G.GAME and G.GAME.eeng_mythic then
-        local d = math.max(0, EEng.plain(G.GAME.dollars) or 0)
-        local steps = math.floor(d / 5)          -- what vanilla is about to multiply by
-        local want  = math.floor(d / 7)          -- what we actually want to pay out
-        G.GAME.interest_amount = (steps > 0) and (want / steps) or 0
-=======
 -- Diamond's $7 interest: hold interest_amount at 1 so the shop reads "1 interest per $7"
 -- (the "/5"->"/7" step itself is patched in lovely/mvp_patches.toml).
 local eeng_eval_round = G.FUNCS.evaluate_round
 G.FUNCS.evaluate_round = function(...)
     if G.GAME and G.GAME.eeng_interest_7 then
         G.GAME.interest_amount = 1
->>>>>>> Stashed changes
     end
     return eeng_eval_round(...)
 end
@@ -251,7 +224,7 @@ SMODS.Stake{
 }
 
 --============================================================
--- IMPOSSIBLE - the name is the description
+-- IMPOSSIBLE - good luck
 --============================================================
 SMODS.Stake{
     key = 'impossible',

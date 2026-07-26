@@ -64,13 +64,21 @@ local function start_joker(key, edition)
 end
 
 -- Grant a Voucher's run effect at start. Same path challenge starting-vouchers use
--- (game.lua:2154): mark it owned, then apply_to_run so its effect (e.g. tarot/planet rate)
--- lands. Used by Arcane / Astronomer.
+-- (game.lua:2154): mark it owned now, then apply_to_run for the effect (tarot/planet rate).
+--
+-- apply_to_run MUST be deferred: its third line is G.vouchers:emplace, and G.vouchers isn't
+-- built until game.lua:2330 - 200 lines after the Back:apply_to_run seam this runs from.
+-- Calling it inline throws into apply_mutations' pcall and the mutation silently no-ops.
+-- Used by Arcane / Astronomer.
 local function grant_voucher(key)
     if not (G.GAME and G.P_CENTERS and G.P_CENTERS[key]) then return end
     G.GAME.used_vouchers = G.GAME.used_vouchers or {}
     G.GAME.used_vouchers[key] = true
-    Card.apply_to_run(nil, G.P_CENTERS[key])
+    G.E_MANAGER:add_event(Event({ func = function()
+        G.GAME.starting_voucher_count = (G.GAME.starting_voucher_count or 0) + 1
+        Card.apply_to_run(nil, G.P_CENTERS[key])
+        return true
+    end }))
 end
 
 --============================================================

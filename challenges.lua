@@ -426,7 +426,8 @@ function ease_ante(mod)
         G.GAME.eeng_chicot_destroyed = true
         for i = #G.jokers.cards, 1, -1 do
             local c = G.jokers.cards[i]
-            if c.config and c.config.center_key == 'j_chicot' then c:start_dissolve() end
+            local ck = c.config and (c.config.center_key or (c.config.center and c.config.center.key))
+            if ck == 'j_chicot' then c:start_dissolve() end
         end
     end
 end
