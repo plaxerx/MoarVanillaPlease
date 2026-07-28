@@ -1,0 +1,74 @@
+# Moar Vanilla Please - lovely patches (Diamond $7 interest step, Mercy Rule blind display)
+#
+# Vanilla hardcodes the $5 interest step in FOUR inline spots: the payout, the round-eval
+# row, the shop indicator's "per $5" label, and - easy to miss - the `dollars >= 5` gate
+# that decides whether the interest row is drawn at all. There is no SMODS/Lua seam for any
+# of them, so the only clean way to make Diamond pay + label per $7 is to patch the literals.
+#
+# Every patch is GATED on G.GAME.mvp_interest_7, so runs without it are byte-for-byte
+# vanilla. With interest_amount pinned to 1 (see stakes.lua) and interest_cap left at its
+# real voucher-driven value, the shop then reads "1 interest per $7 (N max)" where N = cap/5
+# (5 base, 10 with Seed Money, 20 with Money Tree) and the payout is min(N, floor($/7)).
+#
+# NB: lovely re-patches from the INSTALLED copy at game launch - a running game must be
+# restarted for this to take effect.
+
+[manifest]
+version = "1.0.0"
+priority = 10
+
+# --- payout (state_events.lua) ---
+[[patches]]
+[patches.regex]
+target = "functions/state_events.lua"
+pattern = 'dollars = dollars \+ G\.GAME\.interest_amount\*math\.min\(math\.floor\(G\.GAME\.dollars/5\), G\.GAME\.interest_cap/5\)'
+position = "at"
+payload = 'dollars = dollars + G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.mvp_interest_7 and 7 or 5)), G.GAME.interest_cap/5)'
+
+# --- round-eval interest row (state_events.lua) ---
+[[patches]]
+[patches.regex]
+target = "functions/state_events.lua"
+pattern = "dollars = G\\.GAME\\.interest_amount\\*math\\.min\\(math\\.floor\\(G\\.GAME\\.dollars/5\\), G\\.GAME\\.interest_cap/5\\)\\}\\)"
+position = "at"
+payload = "dollars = G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.mvp_interest_7 and 7 or 5)), G.GAME.interest_cap/5)})"
+
+# --- interest row VISIBILITY gate (state_events.lua) ---
+# `if G.GAME.dollars >= 5` decides whether the interest row is drawn on the round-eval
+# screen. In vanilla that 5 matches the divisor, so the row can never show a zero. With the
+# divisor moved to 7 and this gate left at 5, holding $5 or $6 passes the gate and then pays
+# math.floor(5/7) = 0 - the round eval renders "$0  1 interest per $7". Move the gate with
+# the divisor so the row appears only when it is actually worth something.
+[[patches]]
+[patches.regex]
+target = "functions/state_events.lua"
+pattern = 'if G\.GAME\.dollars >= 5 and not G\.GAME\.modifiers\.no_interest then'
+position = "at"
+payload = 'if G.GAME.dollars >= (G.GAME.mvp_interest_7 and 7 or 5) and not G.GAME.modifiers.no_interest then'
+
+# --- "reached interest cap" streak check (state_events.lua) ---
+[[patches]]
+[patches.regex]
+target = "functions/state_events.lua"
+pattern = 'if G\.GAME\.interest_amount\*math\.min\(math\.floor\(G\.GAME\.dollars/5\), G\.GAME\.interest_cap/5\) =='
+position = "at"
+payload = 'if G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.mvp_interest_7 and 7 or 5)), G.GAME.interest_cap/5) =='
+
+# --- shop interest indicator "per $5" -> "per $7" (common_events.lua) ---
+[[patches]]
+[patches.regex]
+target = "functions/common_events.lua"
+pattern = "key = 'interest', vars = \\{G\\.GAME\\.interest_amount, 5, G\\.GAME\\.interest_amount\\*G\\.GAME\\.interest_cap/5\\}"
+position = "at"
+payload = "key = 'interest', vars = {G.GAME.interest_amount, (G.GAME.mvp_interest_7 and 7 or 5), G.GAME.interest_amount*G.GAME.interest_cap/5}"
+
+# --- Mercy Rule mutation: show the halved Boss requirement on the blind-SELECT screen ---
+# The in-round halving is done in Lua (erratic.lua Blind:set_blind), but the select screen
+# computes the shown requirement inline here and never sees it. `type` is the blind slot
+# (Small/Big/Boss) in scope of create_UIBox_blind_choice. Gated on the mutation flag.
+[[patches]]
+[patches.regex]
+target = "functions/UI_definitions.lua"
+pattern = "local blind_amt = get_blind_amount\\(G\\.GAME\\.round_resets\\.blind_ante\\)\\*blind_choice\\.config\\.mult\\*G\\.GAME\\.starting_params\\.ante_scaling"
+position = "at"
+payload = "local blind_amt = get_blind_amount(G.GAME.round_resets.blind_ante)*blind_choice.config.mult*G.GAME.starting_params.ante_scaling*((G.GAME.modifiers and G.GAME.modifiers.mvp_mut_mercy and type == 'Boss') and 0.5 or 1)"
