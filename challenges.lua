@@ -393,6 +393,14 @@ function Game:start_run(args)
         if G.GAME.starting_params then G.GAME.starting_params.play_limit = 3 end
     end
     if m('mvp_long_game') then G.GAME.win_ante = 16 end
+    if m('mvp_baby') then
+        G.GAME.banned_keys = G.GAME.banned_keys or {}
+        for _, pool in ipairs({ 'Enhanced', 'Edition', 'Seal' }) do
+            for _, v in ipairs(G.P_CENTER_POOLS[pool] or {}) do
+                if v.key and not BABY_SAFE[v.key] then G.GAME.banned_keys[v.key] = true end
+            end
+        end
+    end
 end
 
 local mvp_ease_ante = ease_ante
@@ -710,18 +718,17 @@ for _, k in ipairs({
     'v_blank', 'v_antimatter',
 }) do BABY_VOUCHERS[k] = true end
 
-local BABY_ENHANCEMENTS = { m_bonus = true, m_mult = true }
-
 local ban_nonbaby_jokers  = pool_whitelist('Joker', BABY_JOKERS)
 local ban_nonbaby_tarots  = pool_whitelist('Tarot', BABY_TAROTS)
 local ban_nonbaby_vouchers = pool_whitelist('Voucher', BABY_VOUCHERS)
-local ban_nonbaby_enhancements = pool_whitelist('Enhanced', BABY_ENHANCEMENTS)
+-- Enhancements, Editions and Seals are banned into G.GAME.banned_keys at run start
+-- instead of through restrictions.banned_cards: the challenge screen cannot render them.
+local BABY_SAFE = { m_bonus = true, m_mult = true, e_base = true, e_foil = true, e_holo = true }
 
 local ban_spectral_packs = pool_ids('Booster', function(v)
     return v.kind == 'Spectral' or (v.key or ''):find('spectral')
 end)
 
-local ban_baby_editions = { { id = 'e_polychrome' }, { id = 'e_negative' } }
 local ban_all_tags = pool_ids('Tag')
 
 
@@ -916,7 +923,6 @@ challenge('baby', "Baby's First Balatro", {
         { id = 'joker_slots', value = 5 },
     },
     banned_cards = merge_pools(ban_nonbaby_jokers, ban_nonbaby_tarots, ban_nonbaby_vouchers,
-                               ban_nonbaby_enhancements, ban_spectrals, ban_spectral_packs,
-                               ban_baby_editions),
+                               ban_spectrals, ban_spectral_packs),
     banned_tags = ban_all_tags,
 })
