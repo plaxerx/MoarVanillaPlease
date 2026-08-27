@@ -1,8 +1,4 @@
--- Moar Vanilla Please - Challenges. A continuation of the vanilla list from 21-50.
---
--- Game:start_run turns `rules.custom = {{id = 'foo'}}` into `G.GAME.modifiers.foo = true`
--- (or `value = x` stores x instead). A custom rule is a named flag on the run that the
--- hooks below read - the same seam vanilla uses for chips_dollar_cap.
+-- Moar Challenges Please - challenges 21-50 (if counting from Vanilla).
 
 local function m(id) return G.GAME and G.GAME.modifiers and G.GAME.modifiers[id] end
 
@@ -10,25 +6,19 @@ local function m(id) return G.GAME and G.GAME.modifiers and G.GAME.modifiers[id]
 -- Shop / economy hooks
 --============================================================
 
-local mvp_set_cost = Card.set_cost
-function Card:set_cost()
-    mvp_set_cost(self)
-    if not (m('mvp_black_market') or m('mvp_thrift_store') or m('mvp_no_refunds')) then return end
+local mvp_set_cost_value = Card.set_cost_value
+function Card:set_cost_value()
+    mvp_set_cost_value(self)
+    if m('mvp_black_market') then self.cost = self.cost * 2 end
+    if m('mvp_thrift_store') and (self.ability.set == 'Joker' or self.ability.set == 'Booster') then
+        self.cost = math.max(1, math.floor(self.cost * 0.5))
+    end
+end
 
-    local c = MVP.plain(self.cost) or 0
-    local set = self.ability and self.ability.set
-    if m('mvp_black_market') then c = c * 2 end
-    if m('mvp_thrift_store') and (set == 'Joker' or set == 'Booster') then
-        c = math.floor(c * 0.5)
-    end
-    local floor_c = (self.ability and self.ability.rental) and 0 or 1
-    self.cost = math.max(floor_c, c)
-    if m('mvp_no_refunds') then
-        self.sell_cost = 0
-    else
-        self.sell_cost = math.max(floor_c, math.floor(self.cost / 2))
-            + (self.ability and MVP.plain(self.ability.extra_value) or 0)
-    end
+local mvp_set_sell_value = Card.set_sell_value
+function Card:set_sell_value()
+    mvp_set_sell_value(self)
+    if m('mvp_no_refunds') then self.sell_cost = 0 end
 end
 
 local mvp_can_reroll = G.FUNCS.can_reroll
@@ -42,9 +32,7 @@ end
 
 local mvp_impulse_armed = false
 
--- Jokers are sold entering the shop rather than at Boss Blind end, so the cash-out screen
--- still pays the blind reward first. Keyed on ante to fire once per shop.
-local function joker_draft_sweep()
+local function joker_draft_sweep() -- Jokers are sold entering the shop rather than at Boss Blind end.
     if not (m('mvp_joker_draft') and G.jokers and G.GAME.round_resets) then return end
     local ante = MVP.plain(G.GAME.round_resets.ante) or 0
     if G.GAME.mvp_draft_ante == ante then return end
@@ -97,15 +85,14 @@ function calculate_reroll_cost(skip_increment)
         G.GAME.current_round.reroll_cost = math.max(0, done + 1 - 10)
     end
     if m('mvp_impulse_buyer') then
-        mvp_impulse_armed = true 
+        mvp_impulse_armed = true
     end
 end
 
 --============================================================
 -- Card pools
 --============================================================
--- Vanilla keeps no global SUITS/RANKS, so these are ours, declared here for the
--- hand-legality and Recursion hooks below. Keys match G.P_CARDS ('S_A', 'H_T').
+
 local SUITS = { 'S', 'H', 'D', 'C' }
 local RANKS = { '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' }
 local FACES = { 'J', 'Q', 'K' }
@@ -113,6 +100,7 @@ local FACES = { 'J', 'Q', 'K' }
 --============================================================
 -- Hand legality (28 / 36 / 38)
 --============================================================
+
 local SUIT_NAME = { S = 'Spades', H = 'Hearts', D = 'Diamonds', C = 'Clubs' }
 
 local function is_wild(c)
@@ -120,7 +108,7 @@ local function is_wild(c)
     return c.config and c.config.center_key == 'm_wild'
 end
 
-local function suits_in(cards)
+local function suits_in(cards) -- Distinct suits present, with each Wild card counting as one missing suit.
     local seen, wilds = {}, 0
     for _, c in ipairs(cards) do
         if not c.debuff then
@@ -142,23 +130,14 @@ local function suits_in(cards)
     return math.min(4, n + wilds)
 end
 
--- Lower order = stronger hand: SMODS numbers PokerHands from Flush Five (1) down.
-local function hand_order(name)
+
+local function hand_order(name) -- Lower order = stronger hand: SMODS numbers PokerHands from Flush Five (1) down.
     local ph = SMODS.PokerHands and SMODS.PokerHands[name]
     return ph and ph.order or 99
 end
 
--- The un-localized hand name, resolved the way scoring resolves it: the first return of
--- get_poker_hand_info, which play_cards_from_highlighted itself calls.
-local function hand_name_of(cards)
-    if not (G.FUNCS and G.FUNCS.get_poker_hand_info and cards and #cards > 0) then return nil end
-    local ok, text = pcall(G.FUNCS.get_poker_hand_info, cards)
-    if ok and text and text ~= 'NULL' then return text end
-    return nil
-end
 
--- The highest scoring rank in a hand, so 36 can rank a high Pair above a low one.
-local function top_rank(cards)
+local function top_rank(cards) -- Highest scoring rank in a hand, so to rank a high Pair above a low one.
     local best = 0
     for _, c in ipairs(cards or {}) do
         local id = c.get_id and c:get_id() or 0
@@ -173,8 +152,6 @@ function Blind:debuff_hand(cards, hand, handname, check)
 
     if m('mvp_suit_up') and suits_in(cards) < 4 then return true end
 
-    -- Only the real call (check falsy) happens once per played hand, and only a hand that
-    -- passes actually scores, so a rejected hand can't become the bar to beat.
     if m('mvp_poker_purist') and handname then
         local ord, rank = hand_order(handname), top_rank(cards)
         local prev, prev_rank = G.GAME.mvp_last_hand_order, G.GAME.mvp_last_hand_rank or 0
@@ -201,9 +178,6 @@ function Blind:debuff_hand(cards, hand, handname, check)
 
             local ok, parts = pcall(evaluate_poker_hand, pool)
             if ok and parts then
-                -- evaluate_play_intro already counted this hand before the real debuff_hand
-                -- call, so it looks played once more than every rival; undo that here. The
-                -- check=true preview runs before the increment and needs no adjustment.
                 local mine = MVP.plain(this.played) or 0
                 if not check then mine = mine - 1 end
                 local min
@@ -233,7 +207,6 @@ G.FUNCS.evaluate_round = function(...)
             if bs.Boss == 'Defeated' then bs.Boss = 'Upcoming' end
         end
     end
-    -- Poker Purist resets each round, so the next round's first hand has nothing to beat.
     G.GAME.mvp_last_hand_order = nil
     G.GAME.mvp_last_hand_rank = nil
     return mvp_eval_round(...)
@@ -272,25 +245,19 @@ function SMODS.calculate_destroying_cards(context, cards_destroyed, scoring_hand
             if not c.getting_sliced then replaced = replaced + 1 end
             mark_destroyed(c, cards_destroyed)
         end
-        if replaced > 0 then
-            for _ = 1, replaced do
-                local proto = {
-                    s = SUITS[pseudorandom('mvp_rec_s', 1, #SUITS)],
-                    r = RANKS[pseudorandom('mvp_rec_r', 1, #RANKS)],
-                    e = ENH_POOL[pseudorandom('mvp_rec_e', 1, #ENH_POOL)],
-                }
-                G.E_MANAGER:add_event(Event({ func = function()
-                    card_from_control(proto); return true
-                end }))
-            end
+        for _ = 1, replaced do
+            local proto = {
+                s = SUITS[pseudorandom('mvp_rec_s', 1, #SUITS)],
+                r = RANKS[pseudorandom('mvp_rec_r', 1, #RANKS)],
+                e = ENH_POOL[pseudorandom('mvp_rec_e', 1, #ENH_POOL)],
+            }
+            G.E_MANAGER:add_event(Event({ func = function()
+                card_from_control(proto); return true
+            end }))
         end
     end
 end
 
--- 43: steel cards rust leaving play for the discard. draw_from_play_to_discard iterates
--- G.play.cards at exactly that moment. Debuff only, no destruction, so the card scored
--- normally this hand; mvp_rusted keeps it debuffed from the next draw on. card1 is The
--- Hook's discard sound.
 local mvp_draw_discard = G.FUNCS.draw_from_play_to_discard
 G.FUNCS.draw_from_play_to_discard = function(e)
     if m('mvp_rusty_deck') and G.play then
@@ -298,7 +265,6 @@ G.FUNCS.draw_from_play_to_discard = function(e)
             if SMODS.has_enhancement and SMODS.has_enhancement(c, 'm_steel') and not c.mvp_rusted then
                 c.mvp_rusted = true
                 c:set_debuff(true)
-                -- Per card, as The Hook does it (blind.lua:509-516).
                 c:juice_up(0.3, 0.3)
                 play_sound('card1', 1)
             end
@@ -324,7 +290,8 @@ function Card:add_to_deck(from_debuff)
         self.ability.perish_tally = G.GAME.perishable_rounds or 5
     end
 
-    if m('mvp_one_trick') and not mvp_cloning then
+
+    if m('mvp_one_trick') and not mvp_cloning then -- fill the remaining slots with copies. mvp_cloning stops the copies cloning too.
         local src = self
         G.E_MANAGER:add_event(Event({ func = function()
             if G.jokers and not mvp_cloning then
@@ -373,7 +340,6 @@ function create_card(_type, area, legendary, _rarity, skip_materialize, soulable
                 if c.set_cost then c:set_cost() end   -- rentals price at $1; recompute
             end
         elseif c.ability.set == 'Default' or c.ability.set == 'Enhanced' then
-            -- 37: the set_debuff wrapper below turns this into debuffed-unless-Wild.
             if m('mvp_wild_west') then c:set_debuff(false) end
         end
     end
@@ -391,9 +357,6 @@ function SMODS.calculate_retriggers(card, context, _ret)
     return ret
 end
 
--- Retriggers only replay scoring, so Jokers that fire once per event (Cartomancer on blind
--- select, Rocket at end of round) are never doubled. calculate_joker runs a second time for
--- those contexts only; scoring keeps to the retrigger path above.
 local DD_EVENT_CONTEXTS = {
     'setting_blind', 'first_hand_drawn', 'hand_drawn', 'pre_discard', 'discard',
     'end_of_round', 'buying_card', 'open_booster', 'skip_blind', 'reroll_shop',
@@ -408,7 +371,7 @@ function Card:calculate_joker(context, ...)
         and not context.retrigger_joker_check and not self.mvp_dd_running then
         for _, key in ipairs(DD_EVENT_CONTEXTS) do
             if context[key] then
-                self.mvp_dd_running = true          -- rerun must not re-enter here
+                self.mvp_dd_running = true          -- the rerun must not re-enter here
                 pcall(mvp_calc_joker, self, context, ...)
                 self.mvp_dd_running = nil
                 break
@@ -438,8 +401,7 @@ function ease_ante(mod)
     if m('mvp_final_form') and G.jokers and MVP.plain(mod) and MVP.plain(mod) > 0 then
         G.jokers.config.card_limit = G.jokers.config.card_limit + 1
     end
-    -- Legendary Run twist: Chicot is destroyed on reaching ante 8, bypassing its Eternal.
-    if m('mvp_legendary_twist') and G.jokers and not G.GAME.mvp_chicot_destroyed
+    if m('mvp_legendary_twist') and G.jokers and not G.GAME.mvp_chicot_destroyed     -- Chicot is destroyed on reaching Ante 8 and bypasses Eternal.
         and G.GAME.round_resets and (MVP.plain(G.GAME.round_resets.ante) or 0) >= 8 then
         G.GAME.mvp_chicot_destroyed = true
         for i = #G.jokers.cards, 1, -1 do
@@ -459,8 +421,6 @@ function get_blind_amount(ante)
     return base
 end
 
--- G.GAME.blind is one Blind object reused for every blind, so an "already did this" flag
--- would latch after the first. Recompute from the incoming blind config instead.
 local mvp_set_blind_ch = Blind.set_blind
 function Blind:set_blind(blind, reset, silent)
     mvp_set_blind_ch(self, blind, reset, silent)
@@ -473,7 +433,7 @@ function Blind:set_blind(blind, reset, silent)
 end
 
 --============================================================
--- Bosses in Small/Big slots (50, and Erratic Mode's Boss Rush)
+-- Bosses in the Small/Big slots (50)
 --============================================================
 
 local function bosses_everywhere()
@@ -481,9 +441,6 @@ local function bosses_everywhere()
     return (G.GAME.round_resets and G.GAME.round_resets.ante or 1) >= 2
 end
 
--- Vanilla rerolls the shop Voucher whenever the defeated blind isn't literally bl_small or
--- bl_big, so a Boss in the Small/Big slot would pay a new Voucher every round. Keep the
--- current one unless the actual Boss slot was beaten.
 local mvp_next_vouchers = SMODS.get_next_vouchers
 function SMODS.get_next_vouchers(existing)
     if not existing
@@ -496,11 +453,8 @@ function SMODS.get_next_vouchers(existing)
     return mvp_next_vouchers(existing)
 end
 
--- Vanilla reset_blinds only refreshes blind_choices.Boss each ante. Re-roll Small and Big
--- too, so they draw fresh from the boss pool the way the real Boss slot does.
 local mvp_reset_blinds = reset_blinds
 function reset_blinds()
-    -- Vanilla clears Boss to 'Upcoming' inside the call, so read the marker first.
     local bs = G.GAME and G.GAME.round_resets and G.GAME.round_resets.blind_states
     local new_ante = bs and bs.Boss == 'Defeated'
     mvp_reset_blinds()
@@ -516,9 +470,72 @@ function reset_blinds()
     end
 end
 
--- Reports the SLOT a blind sits in, so bookkeeping keyed on blind type treats a Boss in
--- the Small/Big slot as that slot. mvp_true_blind_type suspends this for callers really
--- asking "is this a Boss Blind".
+--============================================================
+-- Baby's First Balatro rules (51)
+--============================================================
+-- The Wall and Violet Vessel are the only vanilla bosses with no ability at all,
+-- so every Boss round is one of those two and differs only in score requirement.
+
+local BABY_BOSS, BABY_FINAL = 'bl_wall', 'bl_final_vessel'
+
+local function baby_boss_mult(ante)
+    if ante >= 8 then return 6 end   -- Very Large Blind
+    if ante == 7 then return 4 end   -- Extra Large Blind
+    return 2                         -- same size as a normal Boss
+end
+
+local mvp_get_new_boss = get_new_boss
+function get_new_boss()
+    if not m('mvp_baby') then return mvp_get_new_boss() end
+    local rr = G.GAME.round_resets
+    local ante = MVP.plain(rr and rr.ante) or 1
+    local win = MVP.plain(G.GAME.win_ante) or 8
+    local key = (ante >= 2 and ante % win == 0) and BABY_FINAL or BABY_BOSS
+    G.GAME.bosses_used[key] = (G.GAME.bosses_used[key] or 0) + 1
+    return key
+end
+
+local mvp_set_blind_baby = Blind.set_blind
+function Blind:set_blind(blind, reset, silent)
+    mvp_set_blind_baby(self, blind, reset, silent)
+    if reset or not (m('mvp_baby') and blind and blind.boss) then return end
+    local rr = G.GAME.round_resets
+    local ante = MVP.plain(rr and rr.ante) or 1
+    self.mult = baby_boss_mult(ante)
+    self.chips = get_blind_amount(rr.ante) * self.mult * G.GAME.starting_params.ante_scaling
+end
+
+local mvp_skip_blind = G.FUNCS.skip_blind
+G.FUNCS.skip_blind = function(e)
+    if m('mvp_baby') then return end
+    return mvp_skip_blind(e)
+end
+
+-- Editions, seals and stickers are polled rather than drawn from a pool, so
+-- banned_keys does not reach them.
+local mvp_poll_edition = poll_edition
+function poll_edition(...)
+    local ed = mvp_poll_edition(...)
+    if m('mvp_baby') and type(ed) == 'table' and (ed.polychrome or ed.negative) then return nil end
+    return ed
+end
+
+if SMODS.poll_seal then
+    local mvp_poll_seal = SMODS.poll_seal
+    function SMODS.poll_seal(...)
+        if m('mvp_baby') then return nil end
+        return mvp_poll_seal(...)
+    end
+end
+
+if SMODS.Sticker and SMODS.Sticker.should_apply then
+    local mvp_should_apply = SMODS.Sticker.should_apply
+    function SMODS.Sticker:should_apply(card, center, area, rate)
+        if m('mvp_baby') then return false end
+        return mvp_should_apply(self, card, center, area, rate)
+    end
+end
+
 local mvp_get_type = Blind.get_type
 function Blind:get_type()
     if not (G.GAME and G.GAME.mvp_true_blind_type)
@@ -528,8 +545,6 @@ function Blind:get_type()
     return mvp_get_type(self)
 end
 
--- Luchador gates its disable on get_type() == 'Boss', so the slot answer above would
--- refuse to cancel a Boss in the Small/Big slot - the one tool The Trial hands you.
 local mvp_sell_card = Card.sell_card
 function Card:sell_card()
     local luchador = self.ability and self.ability.name == 'Luchador'
@@ -540,8 +555,6 @@ function Card:sell_card()
     return ret
 end
 
--- Luchador's tooltip reads the same check to show whether it can disable the blind now,
--- so it must agree with the sell above.
 local mvp_ability_table = Card.generate_UIBox_ability_table
 function Card:generate_UIBox_ability_table(vars_only)
     local luchador = self.ability and self.ability.name == 'Luchador'
@@ -555,6 +568,7 @@ end
 --============================================================
 -- Debuffs (37 / 43)
 --============================================================
+
 local mvp_card_set_debuff = Card.set_debuff
 function Card:set_debuff(should_debuff)
     local playing = self.ability and (self.ability.set == 'Default' or self.ability.set == 'Enhanced')
@@ -564,10 +578,10 @@ function Card:set_debuff(should_debuff)
 end
 
 --============================================================
--- Board note (28's always-visible rule)
+-- Board note (28)
 --============================================================
 
-local mvp_note = nil
+local mvp_note
 
 local function sync_board_note()
     local want = G.STAGE == G.STAGES.RUN and G.STATE == G.STATES.SELECTING_HAND
@@ -581,7 +595,7 @@ local function sync_board_note()
                     config = { align = 'cm', padding = 0.08, r = 0.1, emboss = 0.05,
                                colour = adjust_alpha(G.C.PURPLE, 0.8) },
                     nodes = {{
-                        n = G.UIT.T, config = { text = 'HANDS MUST CONTAIN ALL 4 SUITS',
+                        n = G.UIT.T, config = { text = localize('k_mvp_suit_up'),
                                                 scale = 0.35, shadow = true, colour = G.C.WHITE } },
                     },
                 }},
@@ -601,17 +615,6 @@ function Game:update(dt)
 end
 
 --============================================================
--- Description screen safety
---============================================================
-local mvp_ch_desc_tab = G.UIDEF.challenge_description_tab
-function G.UIDEF.challenge_description_tab(args)
-    local ch = args and args._id and G.CHALLENGES[args._id]
-    local r = ch and ch.restrictions
-    if r and type(r.banned_cards) == 'function' then r.banned_cards = r.banned_cards() end
-    return mvp_ch_desc_tab(args)
-end
-
---============================================================
 -- Ban list helpers
 --============================================================
 
@@ -627,11 +630,11 @@ local function pool_ids(pool_key, filter)
 end
 
 local function merge_pools(...)
-    local fns = { ... }
+    local parts = { ... }
     return function()
         local out, seen = {}, {}
-        for _, fn in ipairs(fns) do
-            for _, e in ipairs(fn()) do
+        for _, part in ipairs(parts) do
+            for _, e in ipairs(type(part) == 'function' and part() or part) do
                 if not seen[e.id] then seen[e.id] = true; out[#out + 1] = e end
             end
         end
@@ -656,6 +659,71 @@ local ban_tarot_packs = pool_ids('Booster', function(v)
 end)
 
 local ban_commons   = pool_ids('Joker', function(v) return v.rarity == 1 or v.rarity == 'Common' end)
+
+--============================================================
+-- Baby's First Balatro whitelists (51)
+--============================================================
+-- Whitelists, so anything unlisted - including every modded object - is banned.
+
+local function pool_whitelist(pool_key, allowed)
+    return pool_ids(pool_key, function(v) return not allowed[v.key] end)
+end
+
+local BABY_JOKERS = {}
+for _, k in ipairs({
+    -- flat Chips or Mult on a poker hand, which is the point of the challenge
+    'j_joker', 'j_jolly', 'j_zany', 'j_mad', 'j_crazy', 'j_droll',
+    'j_sly', 'j_wily', 'j_clever', 'j_devious', 'j_crafty', 'j_half',
+    -- flat Chips or Mult per scored suit or face card
+    'j_greedy_joker', 'j_lusty_joker', 'j_wrathful_joker', 'j_gluttenous_joker',
+    'j_scary_face', 'j_smiley', 'j_arrowhead', 'j_onyx_agate',
+    -- Chips or Mult read off something visible on the board
+    'j_banner', 'j_mystic_summit', 'j_abstract', 'j_blue_joker', 'j_bull',
+    'j_bootstraps', 'j_swashbuckler',
+    -- additive scaling that only ever goes up
+    'j_supernova', 'j_square', 'j_runner', 'j_trousers', 'j_flash', 'j_fortune_teller',
+    'j_hiker',
+    -- economy
+    'j_egg', 'j_delayed_grat', 'j_golden', 'j_cloud_9', 'j_rocket', 'j_to_the_moon',
+    'j_satellite', 'j_gift', 'j_rough_gem',
+    -- quality of life
+    'j_juggler', 'j_drunkard', 'j_chaos', 'j_splash', 'j_astronomer', 'j_burnt',
+}) do BABY_JOKERS[k] = true end
+
+local BABY_TAROTS = {}
+for _, k in ipairs({
+    'c_empress',        -- Mult cards
+    'c_heirophant',     -- Bonus cards; vanilla spells the key this way
+    'c_hermit',         -- double money
+    'c_temperance',     -- money from Jokers
+    'c_high_priestess', -- creates Planets
+    'c_emperor',        -- creates Tarots from this same pool
+}) do BABY_TAROTS[k] = true end
+
+local BABY_VOUCHERS = {}
+for _, k in ipairs({
+    'v_grabber', 'v_nacho_tong', 'v_wasteful', 'v_recyclomancy',
+    'v_overstock_norm', 'v_overstock_plus', 'v_clearance_sale', 'v_liquidation',
+    'v_seed_money', 'v_money_tree', 'v_crystal_ball', 'v_paint_brush', 'v_palette',
+    'v_telescope', 'v_observatory', 'v_planet_merchant', 'v_planet_tycoon',
+    'v_tarot_merchant', 'v_tarot_tycoon', 'v_reroll_surplus', 'v_reroll_glut',
+    'v_blank', 'v_antimatter',
+}) do BABY_VOUCHERS[k] = true end
+
+local BABY_ENHANCEMENTS = { m_bonus = true, m_mult = true }
+
+local ban_nonbaby_jokers  = pool_whitelist('Joker', BABY_JOKERS)
+local ban_nonbaby_tarots  = pool_whitelist('Tarot', BABY_TAROTS)
+local ban_nonbaby_vouchers = pool_whitelist('Voucher', BABY_VOUCHERS)
+local ban_nonbaby_enhancements = pool_whitelist('Enhanced', BABY_ENHANCEMENTS)
+
+local ban_spectral_packs = pool_ids('Booster', function(v)
+    return v.kind == 'Spectral' or (v.key or ''):find('spectral')
+end)
+
+local ban_baby_editions = { { id = 'e_polychrome' }, { id = 'e_negative' } }
+local ban_all_tags = pool_ids('Tag')
+
 
 local ban_unlockable_jokers = pool_ids('Joker', function(v)
     if v.rarity == 4 or v.rarity == 'Legendary' then return false end
@@ -699,7 +767,6 @@ local function challenge(key, name, opts)
             banned_tags  = opts.banned_tags or {},
             banned_other = opts.banned_other or {},
         },
-        unlocked = function(self) return true end,
     }
 end
 
@@ -718,7 +785,6 @@ challenge('homeless', 'Homeless', {
     modifiers = { { id = 'dollars', value = -20 } },
     jokers = { { id = 'j_vagabond', eternal = true } },
 })
--- The Tarot/Planet vouchers would only raise the rate of cards this challenge removed.
 local ban_consumable_vouchers = {
     { id = 'v_tarot_merchant' }, { id = 'v_tarot_tycoon' },
     { id = 'v_planet_merchant' }, { id = 'v_planet_tycoon' },
@@ -761,8 +827,6 @@ challenge('legendary_run', 'Legendary Run, but..', {
         { id = 'j_chicot',    eternal = true },
         { id = 'j_perkeo',    eternal = true },
     },
-    -- Luchador and The Soul are the two routes to extra Legendaries; both banned to keep
-    -- the starting five the only ones in the run.
     banned_cards = { { id = 'j_luchador' }, { id = 'c_soul' } },
     banned_other = {
         { id = 'bl_final_acorn',  type = 'blind' },
@@ -823,7 +887,7 @@ challenge('recovered', 'The Recovered', {
 challenge('tenant', 'The Tenant', {
     custom = {
         { id = 'mvp_tenant' },
-        { id = 'money_per_hand', value = 2 },
+        { id = 'money_per_hand', value = 2, no_ui = true },
     },
     banned_cards = { { id = 'j_credit_card' } },
     banned_other = { { id = 'bl_ox', type = 'blind' } },
@@ -833,13 +897,26 @@ challenge('gambler', 'The Gambler', {
     banned_cards = { { id = 'v_reroll_surplus' }, { id = 'v_reroll_glut' } },
 })
 challenge('long_game', 'The Long Game', { custom = { { id = 'mvp_long_game' } } })
--- Chicot disables Boss Blinds and the Boss Tag / reroll vouchers re-roll them, both of
--- which would defuse a challenge made entirely of Boss Blinds.
 challenge('trial', 'The Trial', {
     custom = { { id = 'mvp_trial' } },
     jokers = { { id = 'j_luchador' } },
-    -- Vouchers go in banned_cards, not banned_other: the challenge screen's ban list only
-    -- draws banned_other entries with type == 'blind', so vouchers there are never shown.
     banned_cards = { { id = 'j_chicot' }, { id = 'v_directors_cut' }, { id = 'v_retcon' } },
     banned_tags = { { id = 'tag_boss' } },
+})
+challenge('baby', "Baby's First Balatro", {
+    custom = {
+        { id = 'mvp_baby' },
+        { id = 'mvp_baby_jokers' },
+        { id = 'mvp_baby_bosses' },
+    },
+    modifiers = {
+        { id = 'hands',       value = 5 },   -- vanilla 4
+        { id = 'discards',    value = 4 },   -- vanilla 3
+        { id = 'dollars',     value = 10 },  -- vanilla 4
+        { id = 'joker_slots', value = 5 },
+    },
+    banned_cards = merge_pools(ban_nonbaby_jokers, ban_nonbaby_tarots, ban_nonbaby_vouchers,
+                               ban_nonbaby_enhancements, ban_spectrals, ban_spectral_packs,
+                               ban_baby_editions),
+    banned_tags = ban_all_tags,
 })

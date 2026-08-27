@@ -1,14 +1,18 @@
-# Moar Vanilla Please - lovely patches (Diamond $7 interest step, Mercy Rule blind display)
+# Moar Vanilla Please - lovely patches (the interest step)
 #
 # Vanilla hardcodes the $5 interest step in FOUR inline spots: the payout, the round-eval
-# row, the shop indicator's "per $5" label, and - easy to miss - the `dollars >= 5` gate
-# that decides whether the interest row is drawn at all. There is no SMODS/Lua seam for any
-# of them, so the only clean way to make Diamond pay + label per $7 is to patch the literals.
+# row, the shop indicator's "per $5" label, and - easy to miss - the `dollars >= 5` gate that
+# decides whether the interest row is drawn at all. There is no SMODS/Lua seam for any of
+# them, so the literals have to be patched.
 #
-# Every patch is GATED on G.GAME.mvp_interest_7, so runs without it are byte-for-byte
-# vanilla. With interest_amount pinned to 1 (see stakes.lua) and interest_cap left at its
-# real voucher-driven value, the shop then reads "1 interest per $7 (N max)" where N = cap/5
-# (5 base, 10 with Seed Money, 20 with Money Tree) and the payout is min(N, floor($/7)).
+# UNIVERSAL, NOT DIAMOND-SPECIFIC. These no longer test for a stake. They route through
+# MVP.interest_step() and MVP.interest_payout(), which read G.GAME.interest_step - a plain
+# number any mod may set. A mod wanting interest per $N sets that field and these five sites
+# follow it; nothing needs to know about Diamond, and Diamond is just the first caller.
+#
+# They are also UNGATED, which is safe because MVP.interest_payout() collapses to vanilla's
+# own expression exactly when the step is 5. A run with no interest mod loaded is byte-for-
+# byte vanilla by arithmetic rather than by branch.
 #
 # NB: lovely re-patches from the INSTALLED copy at game launch - a running game must be
 # restarted for this to take effect.
@@ -23,7 +27,7 @@ priority = 10
 target = "functions/state_events.lua"
 pattern = 'dollars = dollars \+ G\.GAME\.interest_amount\*math\.min\(math\.floor\(G\.GAME\.dollars/5\), G\.GAME\.interest_cap/5\)'
 position = "at"
-payload = 'dollars = dollars + G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.mvp_interest_7 and 7 or 5)), G.GAME.interest_cap/5)'
+payload = 'dollars = dollars + MVP.interest_payout()'
 
 # --- round-eval interest row (state_events.lua) ---
 [[patches]]
@@ -31,41 +35,45 @@ payload = 'dollars = dollars + G.GAME.interest_amount*math.min(math.floor(G.GAME
 target = "functions/state_events.lua"
 pattern = "dollars = G\\.GAME\\.interest_amount\\*math\\.min\\(math\\.floor\\(G\\.GAME\\.dollars/5\\), G\\.GAME\\.interest_cap/5\\)\\}\\)"
 position = "at"
-payload = "dollars = G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.mvp_interest_7 and 7 or 5)), G.GAME.interest_cap/5)})"
+payload = "dollars = MVP.interest_payout()})"
 
 # --- interest row VISIBILITY gate (state_events.lua) ---
 # `if G.GAME.dollars >= 5` decides whether the interest row is drawn on the round-eval
 # screen. In vanilla that 5 matches the divisor, so the row can never show a zero. With the
-# divisor moved to 7 and this gate left at 5, holding $5 or $6 passes the gate and then pays
-# math.floor(5/7) = 0 - the round eval renders "$0  1 interest per $7". Move the gate with
-# the divisor so the row appears only when it is actually worth something.
+# divisor moved and this gate left at 5, holding $5 or $6 on a $7 step passes the gate and
+# then pays math.floor(5/7) = 0 - the round eval renders "$0  1 interest per $7". The gate
+# moves with the step so the row appears only when it is actually worth something.
+#
+# \b before "if" is load-bearing. Without it this pattern matches the "if" tail of an
+# "elseif" (e.g. Cryptid's own interest patch), and position="at" then replaces only that
+# tail - turning a balanced "elseif ... then" into "else if ... then", which needs a second
+# "end" nothing supplies. Balatro then fails to parse with "'end' expected ... near <eof>".
 [[patches]]
 [patches.regex]
 target = "functions/state_events.lua"
-pattern = 'if G\.GAME\.dollars >= 5 and not G\.GAME\.modifiers\.no_interest then'
+pattern = '\bif G\.GAME\.dollars >= 5 and not G\.GAME\.modifiers\.no_interest then'
 position = "at"
-payload = 'if G.GAME.dollars >= (G.GAME.mvp_interest_7 and 7 or 5) and not G.GAME.modifiers.no_interest then'
+payload = 'if G.GAME.dollars >= MVP.interest_step() and not G.GAME.modifiers.no_interest then'
 
 # --- "reached interest cap" streak check (state_events.lua) ---
 [[patches]]
 [patches.regex]
 target = "functions/state_events.lua"
-pattern = 'if G\.GAME\.interest_amount\*math\.min\(math\.floor\(G\.GAME\.dollars/5\), G\.GAME\.interest_cap/5\) =='
+pattern = '\bif G\.GAME\.interest_amount\*math\.min\(math\.floor\(G\.GAME\.dollars/5\), G\.GAME\.interest_cap/5\) =='
 position = "at"
-payload = 'if G.GAME.interest_amount*math.min(math.floor(G.GAME.dollars/(G.GAME.mvp_interest_7 and 7 or 5)), G.GAME.interest_cap/5) =='
+payload = 'if MVP.interest_payout() =='
 
-# --- shop interest indicator "per $5" -> "per $7" (common_events.lua) ---
+# --- shop interest indicator "per $5" -> "per $<step>" (common_events.lua) ---
+# Only the BASE rate is labelled here. A run holding To the Moon still reads "2 interest per
+# $7" while the second point is actually paid per $5 - the label has one step to show and the
+# payout has two. Called out rather than papered over; the number paid is the correct one.
 [[patches]]
 [patches.regex]
 target = "functions/common_events.lua"
 pattern = "key = 'interest', vars = \\{G\\.GAME\\.interest_amount, 5, G\\.GAME\\.interest_amount\\*G\\.GAME\\.interest_cap/5\\}"
 position = "at"
-payload = "key = 'interest', vars = {G.GAME.interest_amount, (G.GAME.mvp_interest_7 and 7 or 5), G.GAME.interest_amount*G.GAME.interest_cap/5}"
+payload = "key = 'interest', vars = {G.GAME.interest_amount, MVP.interest_step(), G.GAME.interest_amount*G.GAME.interest_cap/5}"
 
-# --- Mercy Rule mutation: show the halved Boss requirement on the blind-SELECT screen ---
-# The in-round halving is done in Lua (erratic.lua Blind:set_blind), but the select screen
-# computes the shown requirement inline here and never sees it. `type` is the blind slot
-# (Small/Big/Boss) in scope of create_UIBox_blind_choice. Gated on the mutation flag.
 [[patches]]
 [patches.regex]
 target = "functions/UI_definitions.lua"

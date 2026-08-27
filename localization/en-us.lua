@@ -1,9 +1,11 @@
 return {
     misc = {
-        -- Custom challenge rules are rendered by the description screen with
-        -- localize{type='text', key='ch_c_'..id}, which reads misc.v_text. Every id used
-        -- in a challenge's rules.custom needs an entry here or the rule line reads ERROR.
+        dictionary = {
+            -- MoarChallengesPlease
+            k_mvp_suit_up = "HANDS MUST CONTAIN ALL 4 SUITS",
+        },
         v_text = {
+            -- MoarChallengesPlease
             ch_c_mvp_no_refunds     = { "All sell values are set to {C:money}$0{}" },
             ch_c_mvp_black_market   = { "All shop prices are doubled" },
             ch_c_mvp_thrift_store   = { "Jokers and packs cost {C:attention}50%{} less" },
@@ -29,22 +31,27 @@ return {
             ch_c_mvp_long_game      = { "Must defeat Ante 16 to win" },
             ch_c_mvp_trial          = { "Every blind after Ante 1 is a Boss Blind" },
             ch_c_mvp_legendary_twist = { "{C:attention}Chicot{} is destroyed upon reaching {C:attention}Ante 8{}" },
-            -- Display-only rules: these challenges do their work through starting params,
-            -- decks and ban lists, which the rules screen never spells out on its own.
             ch_c_mvp_homeless       = { "Start at {C:money}-$20{} with an {C:eternal}Eternal{} {C:attention}Vagabond{}" },
-            ch_c_mvp_ivory_tower    = { "Only {C:attention}Jokers{} appear. Start with {C:money}$20{}" },
+            ch_c_mvp_ivory_tower    = { "Only {C:attention}Jokers{} and {C:attention}Buffoon Packs{} appear. Start with {C:money}$20{}" },
             ch_c_mvp_new_beginnings = { "Only the {C:attention}Jokers{} from a fresh save appear" },
             ch_c_mvp_no_commons     = { "{C:attention}Common{} Jokers cannot appear" },
             ch_c_mvp_ancient_tech   = { "No {C:planet}Planet{} cards, packs or tags" },
             ch_c_mvp_stargazer      = { "No {C:tarot}Tarot{} cards, packs or tags" },
             ch_c_mvp_recovered      = { "Start with only {C:attention}face cards{}. Hand size is {C:attention}5{}" },
+            ch_c_mvp_baby           = { "{C:attention}Jokers{} only add {C:chips}Chips{}, {C:mult}Mult{} and {C:money}money{}" },
+            ch_c_mvp_baby_jokers    = { "No {C:attention}XMult{}, retriggers, copying or destruction" },
+            ch_c_mvp_baby_bosses    = { "Boss Blinds have no ability. Blinds cannot be skipped" },
+            -- Pinochle
+            -- localize{type='text'} returns after the FIRST line, so one entry per rule row
+            ch_c_mvp_sandbox       = { "Training for Ante 39 goals" },
+            ch_c_mvp_ensign        = { "{C:attention}Chips/Mult{} operator becomes {C:chips,s:1.5}+{}" },
+            ch_c_mvp_commander     = { "{C:attention}Chips/Mult{} operator becomes {C:dark_edition}^{}" },
+            ch_c_mvp_captain       = { "{C:attention}Chips/Mult{} operator becomes {C:dark_edition}^^{}" },
+            ch_c_mvp_blind_scaling = { "Custom blind scaling" },
         },
     },
     descriptions = {
-        -- Supplied here rather than via loc_txt on purpose. SMODS only runs its
-        -- "Applies <that one specific stake>" builder when loc_txt is NON-empty; with an
-        -- empty loc_txt it leaves these alone, which is precisely how the vanilla stakes
-        -- get the clean "Applies all previous Stakes" line. So we write that line ourselves.
+        -- MoarStakesPlease
         Stake = {
             stake_mvp_platinum = {
                 name = "Platinum Stake",
@@ -73,18 +80,18 @@ return {
             stake_mvp_legendary = {
                 name = "Legendary Stake",
                 text = {
-                    "Required score scales",
-                    "even faster for each {C:attention}Ante{}",
-                    "{C:inactive}(Ante 1 included){}",
+                    "{s:0.8}Required score scales",
+                    "{s:0.8}even faster for each {s:0.8,C:attention}Ante{}",
+                    "{s:0.8,C:inactive}(Ante 1 included){}",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
             stake_mvp_mythic = {
                 name = "Mythic Stake",
                 text = {
-                    "Must reach {C:attention}Ante 10{} to win.",
-                    "{C:attention}Boss Blinds{} appear every",
-                    "{C:attention}8{} and {C:attention}10{} Antes",
+                    "{s:0.8}Must reach {s:0.8,C:attention}Ante 10{s:0.8} to win.",
+                    "{s:0.8,C:attention}Boss Blinds{s:0.8} appear every",
+                    "{s:0.8,C:attention}8{s:0.8} and {s:0.8,C:attention}10{s:0.8} Antes",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
@@ -99,22 +106,21 @@ return {
             stake_mvp_ascendant = {
                 name = "Ascendant Stake",
                 text = {
-                    "Required score scales",
-                    "EVEN FASTER for each {C:attention}Ante{}",
-                    "{C:inactive}(Ante 1 included){}",
+                    "{s:0.8}Required score scales",
+                    "{s:0.8}EVEN FASTER for each {s:0.8,C:attention}Ante{}",
+                    "{s:0.8,C:inactive}(Ante 1 included){}",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
             stake_mvp_impossible = {
                 name = "Impossible Stake",
                 text = {
-                    "{C:blue}-1{} Hand",
-                    "{C:red}-1{} Discard",
-                    "{C:attention}-1{} Hand Size",
-                    "{s:0.8}Applies all previous Stakes (Good Luck)",
+                    "{s:0.8,C:blue}-1{s:0.8} Hand",
+                    "{s:0.8,C:red}-1{s:0.8} Discard",
+                    "{s:0.8,C:attention}-1{s:0.8} Hand Size",
+                    "{s:0.8}Applies all previous Stakes {s:0.8,C:inactive}(Good luck){}",
                 },
             },
-
         },
         Other = {
             mvp_platinum_sticker = {
@@ -147,15 +153,23 @@ return {
             },
             mvp_impossible_sticker = {
                 name = "Impossible Sticker",
-                text = { "Used to win on", "{C:attention}Impossible Stake{} difficulty" },
+                text = { "Used to win on", "{C:attention}Impossible Stake{} difficulty {C:inactive}(wtf??){}" },
             },
         },
+        -- Pinochle
         Sleeve = {
             sleeve_mvp_prismatic_alt = {
                 name = "Prismatic Sleeve",
                 text = {
                     "Provides the upside of each sleeve",
                     "{C:red}Achievements are disabled{}",
+                },
+            },
+            sleeve_mvp_vanilla_alt = {
+                name = "Vanilla Sleeve",
+                text = {
+                    "Only {C:attention}vanilla content{}",
+                    "can appear",
                 },
             },
         },

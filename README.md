@@ -1,24 +1,32 @@
 # Moar Vanilla Please
 
-A content mod for [Balatro](https://www.playbalatro.com/) that extends the base game along the
-lines it already runs on — more challenges, more stakes, and a couple of new ways to play —
-without reinventing how Balatro works.
+All four of my [Balatro](https://www.playbalatro.com/) mods in one package. Everything here
+extends the base game along the lines it already runs on, without reinventing how Balatro
+works.
 
 **Alpha.** Balance and content are still moving.
 
-## Contents
+## What's included
 
-- **30 challenges** (21–50), continuing the vanilla list: economy squeezes like No Refunds and
-  Black Market, hand restrictions like Suit Up and Poker Purist, and full-run twists like
-  Legendary Run and The Trial.
-- **8 stakes above Gold** — Platinum, Titanium, Diamond, Legendary, Mythic, Radiant, Ascendant
-  and Impossible. Legendary is the first real ceiling; the four above it are a different game.
-- **Erratic Mode** — start a run on a random deck, stake and sleeve with 0–8 rolled
-  *mutations* drawn from a pool of 50 (Challenges, Boons and Twists), which combine and
-  conflict with one another.
-- **The Prismatic deck and sleeve**.
-- **Peek Store** — an optional shop tool that shows what future rerolls hold and what reaching
-  them would cost. Off by default; enable it in the mod config.
+| Content | Effect |
+|---|---|
+| **31 challenges** | Numbers 21–51, continuing the vanilla list. Economy squeezes, hand restrictions and full-run twists |
+| **8 stakes above Gold** | Platinum, Titanium, Diamond, Legendary, Mythic, Radiant, Ascendant, Impossible |
+| **Erratic Mode** | Start on a random deck, stake and sleeve with 0–8 rolled mutations drawn from a pool of 50 |
+| **Prismatic Deck** | Every vanilla deck's upside at once |
+| **Prismatic Sleeve** | Every vanilla sleeve's upside at once |
+| **Vanilla Deck** | Only vanilla Jokers can appear |
+| **Vanilla Sleeve** | Only vanilla Consumables, Vouchers and Tags. Together with the Vanilla Deck, only vanilla content |
+| **NANEINF Lite** | A sandbox challenge with easier access to endless runs |
+| **Ensign / Commander / Captain** | Amulet-only challenges scoring with `+`, `^` and `^^`, each with custom Ante scaling |
+| **Peek Store** | Shows what the next few shop rerolls hold. Off by default |
+
+Challenge 51 is **Baby's First Balatro** — a deliberately gentle version for a young child
+learning the loop. Jokers only ever add Chips, Mult or money, Boss Blinds have no ability,
+and nothing gets destroyed, retriggered or multiplied.
+
+The stake ladder is its own progression. Legendary is the first real ceiling; the four above
+it are a different game.
 
 ## Requirements
 
@@ -27,7 +35,9 @@ without reinventing how Balatro works.
 
 Optional, supported if present:
 
-- [CardSleeves](https://github.com/larswijn/CardSleeves) — for the Prismatic sleeve
+- [CardSleeves](https://github.com/larswijn/CardSleeves) — for the Prismatic and Vanilla sleeves
+- [Amulet](https://github.com/frostice482/amulet) 3.5.4+ — Ensign, Commander and Captain
+  appear only when it is installed
 - [Talisman](https://github.com/MathIsFun0/Talisman) — big-number support at high stakes
 
 ## Installation
@@ -40,6 +50,19 @@ Copy the `MoarVanillaPlease` folder into your Balatro mods directory:
 
 Restart the game. Lovely patches are read from the installed copy at launch, so a running game
 will not pick up changes.
+
+## Split versions
+
+The same content is also published as four smaller mods, for anyone who wants only part of it:
+
+- [MoarStakesPlease](https://github.com/plaxerx/MoarStakesPlease) — the stake ladder
+- [MoarChallengesPlease](https://github.com/plaxerx/MoarChallengesPlease) — the challenges
+- [ErraticMode](https://github.com/plaxerx/erraticmode) — the rolled mutations
+- [Pinochle](https://github.com/plaxerx/pinochle) — the decks, sleeves, sandbox challenges and
+  Peek Store
+
+Those four each declare a conflict with this mod, so **install this one or those, not both**.
+If both are present, Moar Vanilla Please wins and the others stay dormant.
 
 ## Companion mod
 

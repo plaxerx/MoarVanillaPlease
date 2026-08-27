@@ -78,6 +78,7 @@ end
 assert(SMODS.load_file('decks.lua'))()
 assert(SMODS.load_file('stakes.lua'))()
 assert(SMODS.load_file('challenges.lua'))()
+assert(SMODS.load_file('sandbox.lua'))()
 assert(SMODS.load_file('erratic.lua'))()
 assert(SMODS.load_file('peek.lua'))()
 
@@ -121,7 +122,7 @@ SMODS.current_mod.config_tab = function()
             }),
         }},
         { n = G.UIT.R, config = { align = 'cm', padding = 0.08, maxw = 7 }, nodes = {
-            { n = G.UIT.T, config = { text = 'Shows upcoming shop cards in future rerolls, with the cost to reach them.',
+            { n = G.UIT.T, config = { text = 'Shows upcoming shop cards in future rerolls with the costs to reach them.',
                                       scale = 0.3, colour = G.C.UI.TEXT_INACTIVE } },
         }},
     }}

@@ -1,26 +1,9 @@
--- Moar Vanilla Please - Peek Rolls. A shop tool that predicts the cards in future rerolls,
--- with the cumulative reroll cost to reach each one. Gated by mod config.
---
--- METADATA-ONLY PREDICTION: creates no Card objects, because Card creation and removal
--- touch the controller, event queues, cursor context and card_limits. It replicates only
--- the identity-relevant RNG draws of the real generator, transcribed from
--- common_events.lua:2498+ and UI_definitions.lua:802+, and reads the results as plain data.
---
--- EXACT because Balatro's RNG is per-key streams (G.GAME.pseudorandom[key]): the real
--- reroll consumes the same streams in the same order, so identical draws from the current
--- state yield identical cards. The whole pseudorandom table is restored afterward, so the
--- run's own next reroll starts from untouched state.
---
--- LIMITS: assumes only rerolling - buying, using a consumable, a Tag that edits shop cards,
--- or a rate-changing Voucher purchase changes what actually appears. The overlay says so.
---
--- Must predict while UNPAUSED: pseudoseed() short-circuits to math.random() while paused,
--- so the button handler predicts first, then pauses to show the overlay.
+-- Pinochle - Peek Store.
 
 local PEEK_MAX = 8
 
 --============================================================
--- Gating
+-- Visibility
 --============================================================
 local function is_endless()
     return G.GAME and G.GAME.round_resets and G.GAME.win_ante
@@ -35,6 +18,19 @@ function MVP.peek_allowed()
     return is_endless() or G.GAME.seeded == true      -- Endless & Seeded
 end
 
+local mvp_update_shop = Game.update_shop
+function Game:update_shop(dt)
+    if not G.shop and G.GAME then G.GAME.mvp_shop_stocked = nil end
+    mvp_update_shop(self, dt)
+    if G.GAME and G.shop_jokers and #G.shop_jokers.cards > 0 then
+        G.GAME.mvp_shop_stocked = true
+    end
+end
+
+function MVP.peek_ready()
+    return MVP.peek_allowed() and G.GAME.mvp_shop_stocked == true
+end
+
 local function peek_depth()
     local d = (MVP.CFG and MVP.CFG.peek_depth) or 5
     return math.max(1, math.min(PEEK_MAX, d))
@@ -43,8 +39,7 @@ end
 --============================================================
 -- Reroll cost
 --============================================================
--- Cost of the r-th reroll from now: free while free_rerolls covers it, else the base plus
--- the running increase, which climbs $1 per paid reroll.
+
 local function reroll_cost(r)
     local cr = G.GAME.current_round
     local base = MVP.plain(G.GAME.round_resets.temp_reroll_cost or G.GAME.round_resets.reroll_cost) or 5
@@ -55,11 +50,9 @@ local function reroll_cost(r)
 end
 
 --============================================================
--- One simulated shop card (identity only, no Card object)
+-- Card shop simulation -- we do this to "generate" what potentially comes next, not 100% reliable
 --============================================================
--- Transcription of create_card_for_shop's rate walk plus create_card's pool pick, front,
--- sticker and edition rolls. Every pseudorandom/pseudoseed call below exists, with the same
--- key, in the real path; if the game or SMODS changes those lines this must be re-synced.
+
 local function edition_name(ed)
     if type(ed) ~= 'table' then return nil end
     for _, k in ipairs({ 'negative', 'polychrome', 'holo', 'foil' }) do
@@ -69,9 +62,7 @@ local function edition_name(ed)
 end
 
 local function sim_shop_card()
-    local ante = G.GAME.round_resets.ante
-
-    -- Rate walk (UI_definitions.lua:826+).
+    local ante = G.GAME.round_resets.ante   
     G.GAME.spectral_rate = G.GAME.spectral_rate or 0
     local total_rate = G.GAME.joker_rate + G.GAME.playing_card_rate
     for _, v in ipairs(SMODS.ConsumableType.obj_buffer) do
@@ -103,8 +94,6 @@ local function sim_shop_card()
     end
     if not set then return { set = '?', key = nil } end
 
-    -- Pool pick (common_events.lua:2552+). 'Base' is hardcoded to c_base with no pool
-    -- draw. soulable is nil for shop cards, so the soul rolls never run here.
     local key
     if set == 'Base' then
         key = 'c_base'
@@ -118,18 +107,13 @@ local function sim_shop_card()
         end
     end
 
-    -- Front (rank+suit) for playing cards (common_events.lua:2563).
     local front
     if set == 'Base' or set == 'Enhanced' then
         front = pseudorandom_element(G.P_CARDS, pseudoseed('front' .. 'sho' .. ante))
     end
 
-    -- Joker-only: shop sticker polls plus edition poll (common_events.lua:2578+). The
-    -- sticker streams only advance when the matching modifier is live, same as the real code.
     local edition, eternal, perishable, rental
     if set == 'Joker' then
-        -- etperpoll draws unconditionally for shop jokers (modifiers only gate its use),
-        -- while ssjr's draw is short-circuit gated. Mirrored exactly.
         local ep = pseudorandom('etperpoll' .. ante)
         if G.GAME.modifiers.enable_eternals_in_shop and ep > 0.7 then eternal = true
         elseif G.GAME.modifiers.enable_perishables_in_shop and ep > 0.4 and ep <= 0.7 then perishable = true end
@@ -139,7 +123,6 @@ local function sim_shop_card()
         edition = poll_edition('edi' .. 'sho' .. ante)
     end
 
-    -- Illusion voucher edition for playing cards (UI_definitions.lua:864).
     if (set == 'Base' or set == 'Enhanced') and G.GAME.used_vouchers['v_illusion']
         and pseudorandom(pseudoseed('illusion')) > 0.8 then
         edition = poll_edition('illusion', nil, true, true)
@@ -155,7 +138,7 @@ local function sim_shop_card()
 end
 
 --============================================================
--- Prediction
+-- Prediction engine
 --============================================================
 local function shallow_copy(t)
     local o = {}
@@ -163,14 +146,11 @@ local function shallow_copy(t)
     return o
 end
 
--- Returns a list of rerolls, each { cost = cumulative$, cards = {sim_shop_card()...} }.
 function MVP.predict_shop()
     if not (G.GAME and G.GAME.pseudorandom and G.GAME.current_round) then return {} end
     local depth = peek_depth()
     local joker_max = math.max(1, MVP.plain(G.GAME.shop and G.GAME.shop.joker_max) or 2)
-
-    -- The only state the simulation advances is the RNG stream table; snapshot and
-    -- restore it and the run is untouched.
+    
     local saved_pr = shallow_copy(G.GAME.pseudorandom)
 
     local out = {}
@@ -186,7 +166,6 @@ function MVP.predict_shop()
         end
     end)
 
-    -- Restore in place, so references to G.GAME.pseudorandom elsewhere stay valid.
     for k in pairs(G.GAME.pseudorandom) do if saved_pr[k] == nil then G.GAME.pseudorandom[k] = nil end end
     for k, v in pairs(saved_pr) do G.GAME.pseudorandom[k] = v end
     return out
@@ -195,6 +174,7 @@ end
 --============================================================
 -- Overlay UI
 --============================================================
+
 local function set_colour(set)
     local ss = G.C.SECONDARY_SET or {}
     local map = {
@@ -213,8 +193,6 @@ local function card_name(c)
     if c.rental then bits[#bits + 1] = '[rental]' end
     local prefix = #bits > 0 and (table.concat(bits, ' ') .. ' ') or ''
 
-    -- Playing cards: the exact front is known, so show it, falling back to "Random
-    -- Playing Card" if missing.
     if c.set == 'Base' or c.set == 'Default' or c.set == 'Enhanced' then
         local name = c.front and (tostring(c.front.value) .. ' of ' .. tostring(c.front.suit))
             or 'Random Playing Card'
@@ -262,7 +240,6 @@ function G.UIDEF.mvp_peek_store(rerolls)
     local content = { n = G.UIT.R, config = { align = 'cm', padding = 0.05 }, nodes = {
         { n = G.UIT.C, config = { align = 'tm', padding = 0.05 }, nodes = rows } } }
 
-    -- Scrollable, like the Mutation List, so a deep peek never runs off-screen.
     local MAXH = 6.6
     local body
     if SMODS.UIScrollBox and SMODS.GUI and SMODS.GUI.scrollbar then
@@ -296,35 +273,31 @@ function G.UIDEF.mvp_peek_store(rerolls)
 end
 
 G.FUNCS.mvp_peek_store = function(e)
-    -- Double-open guard: a second overlay while one is up stacks the cursor context layer
-    -- unbalanced, making everything under it unclickable.
     if G.OVERLAY_MENU then return end
-    -- Predict before pausing: pseudoseed() returns math.random() while paused.
+    if not MVP.peek_ready() then
+        attention_text{ text = 'Shop is still dealing', scale = 0.5, hold = 1.2,
+                        major = G.shop_jokers or G.jokers, align = 'cm' }
+        return
+    end
     local rerolls = MVP.predict_shop()
     G.SETTINGS.paused = true
     G.FUNCS.overlay_menu{ definition = G.UIDEF.mvp_peek_store(rerolls) }
 end
 
 --============================================================
--- The shop button
+-- Shop button
 --============================================================
 local mvp_uidef_shop = G.UIDEF.shop
 function G.UIDEF.shop()
     local t = mvp_uidef_shop()
     if not (MVP.peek_allowed() and t and t.nodes) then return t end
 
-    -- The shop root lays its children out as columns, so inserting a node would land the
-    -- button to the left of the store. Wrapping the whole shop in a vertical stack instead
-    -- sits it above, with the original nodes re-parented unchanged.
     local button_row = { n = G.UIT.R, config = { align = 'cm', padding = 0.04 }, nodes = {
         UIBox_button({
             label = { 'Peek Rolls' },
             button = 'mvp_peek_store',
             colour = G.C.GOLD or G.C.ORANGE,
             minw = 3, minh = 0.5, scale = 0.4,
-            -- No one_press: it sets disable_button=true after the first press, and a
-            -- reroll doesn't rebuild the shop UI, so the button would stay dead until the
-            -- shop is re-entered. Double-open is handled by the guard in mvp_peek_store.
         }),
     }}
     return { n = G.UIT.ROOT, config = { align = 'cm', colour = G.C.CLEAR }, nodes = {

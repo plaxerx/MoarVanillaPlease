@@ -1,28 +1,18 @@
--- Moar Vanilla Please - Erratic Mode.
---
--- One button on the Challenges tab starts a run on a random deck, a random White-Gold
--- stake, a random sleeve (with CardSleeves), and 0-8 rolled MUTATIONS. At 0 the run is
--- just the random setup. This file owns the pool, the hooks, and the mode UI.
+-- Erratic Mode.
 --
 -- Mutations are rolled per run rather than baked into a challenge object like rules.custom,
--- so they are stored as a list of KEYS on G.GAME (never tables - the autosave's
--- Channel:push cannot serialise a function, and a mutation table carries apply()).
+-- so they are stored as a list of KEYS on G.GAME
 --
 -- Each mutation carries:
 --   key       - stable id stored in G.GAME.mvp_mutations
 --   name      - shown in the Mutation List and View Deck > Mutations
 --   category  - 'Challenge' | 'Boon' | 'Twist'. Slot 1 is always a Challenge, slot 2 always
---               a Boon, every slot after is equal-odds among the three (MVP.roll_mutations).
+--               a Boon, every slot after is equal-odds among the three.
 --   text      - one or two short lines
 --   conflicts - mutation keys that can't co-exist with this one, made symmetric at load.
 --   apply     - runs once at run start (pcall'd), setting starting_params / modifiers /
 --               flags that the hooks below read.
 --
--- Scope notes:
---   chip_focus / mult_focus scale only the poker-hand table (base level-1 values and Planet
---   per-level gains), floored to avoid decimal chips/mult - not a global scoring transform.
---   spectral_world bans Tarot/Planet cards, packs and tags rather than filtering the shop
---   only. thin_deck's "cannot add cards" half is still a stub. Everything else is wired.
 
 MVP.MUTATIONS = {}
 MVP.MUT_BY_KEY = {}
@@ -36,17 +26,12 @@ end
 local function sp() return G.GAME.starting_params end
 local function mods() return G.GAME.modifiers end
 
--- Queue a starting Joker for the run. Stored as {k=key, e=edition} strings, not closures,
--- so G.GAME stays serialisable; spawned in mutations_finish once G.jokers exists.
-local function start_joker(key, edition)
+local function start_joker(key, edition) -- Queue a starting Joker for the run.
     G.GAME.mvp_mut_jokers = G.GAME.mvp_mut_jokers or {}
     G.GAME.mvp_mut_jokers[#G.GAME.mvp_mut_jokers + 1] = { k = key, e = edition }
 end
 
--- Grant a Voucher's run effect at start, the same path challenge starting-vouchers use
--- (game.lua:2154): mark it owned, then apply_to_run for the effect. Deferred because
--- apply_to_run calls G.vouchers:emplace, and G.vouchers isn't built until game.lua:2330.
-local function grant_voucher(key)
+local function grant_voucher(key) -- Grant a Voucher's run effect at start
     if not (G.GAME and G.P_CENTERS and G.P_CENTERS[key]) then return end
     G.GAME.used_vouchers = G.GAME.used_vouchers or {}
     G.GAME.used_vouchers[key] = true
@@ -58,7 +43,7 @@ local function grant_voucher(key)
 end
 
 --============================================================
--- CHALLENGES (slot 1 is always one of these)
+-- CHALLENGES
 --============================================================
 mut{ key = 'double_boss', name = 'Double Boss', category = 'Challenge',
      text = { 'A {C:attention}Finisher Boss{} every 4 Antes', 'starting at Ante 4' },
@@ -76,10 +61,10 @@ mut{ key = 'double_trouble', name = 'Double Trouble', category = 'Challenge',
 
 mut{ key = 'sudden_death', name = 'Sudden Death', category = 'Challenge',
      text = { 'One hand per Blind', 'Start with {C:dark_edition}Negative{} {C:attention}Dusk{}' },
-     conflicts = { 'painted_hands', 'quick_hands' },
+     conflicts = { 'painted_hands', 'quick_hands', 'double_trouble' },
      apply = function()
          sp().hands = 1
-         start_joker('j_dusk', 'negative')   -- retriggers the final hand of the blind
+         start_joker('j_dusk', 'negative') 
      end }
 
 mut{ key = 'marathon', name = 'Marathon', category = 'Challenge',
@@ -107,14 +92,14 @@ mut{ key = 'poverty', name = 'Poverty', category = 'Challenge',
      conflicts = { 'high_roller', 'capitalism', 'penny_pincher' },
      apply = function()
          sp().dollars = 0
-         mods().no_interest = true   -- vanilla's own modifier
+         mods().no_interest = true   
          start_joker('j_todo_list', 'negative')
      end }
 
 mut{ key = 'inflation', name = 'Inflation', category = 'Challenge',
      text = { 'Each reroll raises future', 'base reroll cost by {C:money}$1{}' },
      conflicts = { 'everything_must_go' },
-     apply = function() mods().inflation = true end }   -- vanilla's own modifier
+     apply = function() mods().inflation = true end }  
 
 mut{ key = 'no_refunds', name = 'No Refunds', category = 'Challenge',
      text = { 'Sell value of all items is {C:money}$0{}' },
@@ -128,16 +113,14 @@ mut{ key = 'minimalist', name = 'Minimalist', category = 'Challenge',
 
 mut{ key = 'eternal_kingdom', name = 'Eternal Kingdom', category = 'Challenge',
      text = { 'All {C:attention}Jokers{} are {C:eternal}Eternal{}' },
-     conflicts = { 'rental_market' },
-     apply = function() mods().all_eternal = true end }   -- vanilla's own modifier
+     conflicts = { 'rental_market', 'no_commitments' },
+     apply = function() mods().all_eternal = true end }  
 
 mut{ key = 'rental_market', name = 'Rental Market', category = 'Challenge',
      text = { 'All {C:attention}Jokers{} are {C:rental}Rental{}' },
      conflicts = { 'eternal_kingdom' },
      apply = function() mods().mvp_mut_all_rental = true end }
 
--- Rarity bans: three single-rarity mutations, mutually exclusive with each other and with
--- Equality, each setting one flag the poll_rarity hook reads.
 mut{ key = 'rare_earth', name = 'Rare Earth', category = 'Challenge',
      text = { '{C:red}Rare{} Jokers cannot appear' },
      conflicts = { 'no_common_sense', 'middle_child', 'equality' },
@@ -173,7 +156,7 @@ mut{ key = 'go_with_the_flow', name = 'Go with the Flow', category = 'Challenge'
      end }
 
 --============================================================
--- BOONS (slot 2 is always one of these)
+-- BOONS
 --============================================================
 mut{ key = 'high_roller', name = 'High Roller', category = 'Boon',
      text = { 'Start with {C:money}$50{}', 'Shop prices {C:attention}doubled{}' },
@@ -248,10 +231,10 @@ mut{ key = 'mult_focus', name = 'Mult Focus', category = 'Boon',
 mut{ key = 'penny_pincher', name = 'Penny Pincher', category = 'Boon',
      text = { 'Remaining {C:red}Discards{} give {C:money}$1{} each' },
      conflicts = { 'go_with_the_flow' },
-     apply = function() mods().mvp_mut_discard_dollars = true end }
+     apply = function() mods().money_per_discard = 1 end }
 
 mut{ key = 'treasure_hunter', name = 'Treasure Hunter', category = 'Boon',
-     text = { 'An extra {C:money}free{} {C:attention}Voucher{} in the shop', 'Blind cash reward {C:money}halved{}' },
+     text = { 'Beating a {C:attention}Boss{} also rewards', 'a {C:attention}Voucher{}. Blind cash reward {C:money}halved{}' },
      conflicts = { 'double_boss' },
      apply = function() mods().mvp_mut_treasure = true end }
 
@@ -261,7 +244,7 @@ mut{ key = 'lucky_seven', name = 'Lucky Seven', category = 'Boon',
      apply = function() mods().mvp_mut_lucky_sevens = true end }
 
 --============================================================
--- TWISTS (equal-odds pool from slot 3 on, with Challenges and Boons)
+-- TWISTS
 --============================================================
 mut{ key = 'card_pulls', name = 'Card Pulls', category = 'Twist',
      text = { 'Everything in the shop costs {C:attention}2X{}', '{C:attention}Booster Packs{} cost {C:attention}50%{} less' },
@@ -291,12 +274,9 @@ mut{ key = 'no_commitments', name = 'No Commitments', category = 'Twist',
      apply = function() mods().mvp_mut_autosell_leftmost = true end }
 
 mut{ key = 'thin_deck', name = 'Thin Deck', category = 'Twist',
-     text = { 'Start with {C:attention}20{} random plain cards', 'Cannot {C:attention}add{} cards' },
+     text = { 'Start with {C:attention}20{} random plain cards' },
      conflicts = { 'heavy_deck', 'broken_deck' },
-     apply = function()
-         mods().mvp_mut_deck_target = 20
-         mods().mvp_mut_no_add_cards = true
-     end }
+     apply = function() mods().mvp_mut_deck_target = 20 end }
 
 mut{ key = 'broken_deck', name = 'Broken Deck', category = 'Twist',
      text = { '{C:attention}10{} random starting cards', 'gain a random {C:attention}seal{}' },
@@ -346,19 +326,17 @@ mut{ key = 'aggressive', name = 'Aggressive', category = 'Twist',
      text = { 'Unused {C:blue}Hands{} give no money', 'Unused {C:red}Discards{} give {C:money}$1{} each' },
      conflicts = { 'hoarder', 'go_with_the_flow' },
      apply = function()
-         mods().no_extra_hand_money = true   -- vanilla's own modifier
-         mods().mvp_mut_discard_dollars = true
+         mods().no_extra_hand_money = true  
+         mods().money_per_discard = 1   
      end }
 
 mut{ key = 'spectral_world', name = 'Spectral World', category = 'Twist',
-     -- Partial: bans Tarot/Planet cards, packs and tags outright rather than filtering the
-     -- shop only, which would need a shop/pack-pool hook not yet built.
      text = { 'Only {C:spectral}Spectral{} cards appear' },
      conflicts = { 'arcane', 'astronomer', 'no_magic', 'no_science' },
      apply = function()
          mods().mvp_mut_no_tarots = true
          mods().mvp_mut_no_planets = true
-         G.GAME.spectral_rate = 4
+         mods().mvp_mut_spectral_rate = 4   
      end }
 
 mut{ key = 'chaos_theory', name = 'Chaos Theory', category = 'Twist',
@@ -385,7 +363,7 @@ mut{ key = 'overstocked', name = 'Overstocked', category = 'Twist',
 --============================================================
 -- ROLLING
 --============================================================
--- Symmetric conflict map, built once: listing A->B is enough, B is blocked when A is picked.
+
 local function build_conflicts()
     local cm = {}
     for _, mt in ipairs(MVP.MUTATIONS) do cm[mt.key] = cm[mt.key] or {} end
@@ -398,13 +376,6 @@ local function build_conflicts()
     return cm
 end
 
--- Roll N mutations, keys only - storing the mutation tables would crash the autosave.
---
--- Slot 1 is always a Challenge, slot 2 always a Boon, every slot after is equal-odds among
--- the three. A picked mutation blocks its conflicts; if a category has nothing legal left,
--- the other categories are tried so the slot is never wasted.
---
--- math.random, not pseudorandom: runs from the menu, before a run seed exists.
 function MVP.roll_mutations(n)
     n = math.max(0, math.min(8, math.floor((n or 0) + 0.5)))
     if n == 0 then return {} end
@@ -414,7 +385,7 @@ function MVP.roll_mutations(n)
         if by_cat[mt.category] then by_cat[mt.category][#by_cat[mt.category] + 1] = mt end
     end
     for _, list in pairs(by_cat) do
-        table.sort(list, function(a, b) return a.key < b.key end)  -- stable base order
+        table.sort(list, function(a, b) return a.key < b.key end)
     end
 
     local cm = build_conflicts()
@@ -437,8 +408,7 @@ function MVP.roll_mutations(n)
     for i = 1, n do
         local want = (i == 1 and 'Challenge') or (i == 2 and 'Boon') or cats[math.random(1, 3)]
         if not pick_from(want) then
-            -- Fall back through the other categories so the slot still fills.
-            for _, c2 in ipairs(cats) do
+            for _, c2 in ipairs(cats) do 	-- Fall back through the other categories so the slot still fills.
                 if c2 ~= want and pick_from(c2) then break end
             end
         end
@@ -446,16 +416,14 @@ function MVP.roll_mutations(n)
     return chosen
 end
 
-
 function MVP.apply_mutations()
     if not (G.GAME and G.GAME.mvp_mutations) then return end
     for _, key in ipairs(G.GAME.mvp_mutations) do
         local mm = MVP.MUT_BY_KEY[key]
         if mm and mm.apply then
-            -- One bad mutation must not take the whole run down with it.
-            local ok, err = pcall(mm.apply)
+            local ok, err = pcall(mm.apply) -- One bad mutation must not take the whole run down with it.
             if not ok then
-                sendWarnMessage('Mutation ' .. key .. ' failed to apply: ' .. tostring(err), 'MVP')
+                sendWarnMessage('Mutation ' .. key .. ' failed to apply: ' .. tostring(err), 'ErraticMode')
             end
         end
     end
@@ -475,8 +443,6 @@ end
 --============================================================
 local function mm(id) return G.GAME and G.GAME.modifiers and G.GAME.modifiers[id] end
 
--- Blind size: Double Trouble / Marathon / Escalation share one seam. Talisman hands back a
--- big number here; multiply it, never floor it or return a plain number in its place.
 local mvp_mut_blind_amount = get_blind_amount
 function get_blind_amount(ante)
     local base = mvp_mut_blind_amount(ante)
@@ -489,28 +455,32 @@ function get_blind_amount(ante)
     return (to_big and to_big(base) or base) * mult
 end
 
--- Mercy Rule keys off the blind itself, not the ante, so it can't ride get_blind_amount.
--- Treasure Hunter halves the blind's cash reward here too.
 local mvp_mut_set_blind = Blind.set_blind
 function Blind:set_blind(blind, reset, silent)
     mvp_mut_set_blind(self, blind, reset, silent)
-    if reset then return end
+    if reset or not blind then return end
+    local dollars_changed = false
     if mm('mvp_mut_mercy') and self.boss then
         if self.chips then
             self.chips = (to_big and to_big(self.chips) or self.chips) * 0.5
             self.chip_text = number_format(self.chips)
         end
-        self.dollars = 0   -- no Boss cash reward
+        self.dollars = 0
+        dollars_changed = true
     end
-    -- Recomputed from the blind config rather than flag-guarded: G.GAME.blind is one
-    -- reused object, so a flag on self would latch after the first blind.
-    if mm('mvp_mut_treasure') and blind then
-        self.dollars = math.max(0, math.floor((MVP.plain(blind.dollars) or 0) / 2))
+    if mm('mvp_mut_treasure') then
+        self.dollars = math.max(0, math.floor((MVP.plain(self.dollars) or 0) / 2))
+        dollars_changed = true
+    end
+    if dollars_changed then
+        self.sound_pings = self.dollars + 2
+        if G.GAME.current_round then
+            G.GAME.current_round.dollars_to_be_earned =
+                self.dollars > 0 and string.rep(localize('$'), self.dollars) or ''
+        end
     end
 end
 
--- No Small Talk / Big Brother: hides a blind using vanilla's own 'Hide' blind state.
--- reset_blinds re-inits blind_states to Upcoming each ante, so the Hide is re-applied here.
 local function apply_blind_hides()
     local bs = G.GAME and G.GAME.round_resets and G.GAME.round_resets.blind_states
     if not bs then return end
@@ -524,16 +494,13 @@ function reset_blinds()
     apply_blind_hides()
 end
 
--- Double Boss: a Finisher Boss every 4 antes from ante 4. get_new_boss's showdown test is
--- `ante % win_ante == 0`, so briefly setting win_ante to a divisor of the current ante
--- makes the finisher pool eligible early.
-local mvp_mut_get_new_boss = get_new_boss
+local mvp_mut_get_new_boss = get_new_boss -- Double Boss
 function get_new_boss()
     if mm('mvp_mut_finisher_cadence') and G.GAME.round_resets and G.GAME.win_ante then
         local a = G.GAME.round_resets.ante
         if a >= 4 and a % 4 == 0 and a % G.GAME.win_ante ~= 0 then
             local saved = G.GAME.win_ante
-            G.GAME.win_ante = 4          -- a is a multiple of 4 -> a % 4 == 0 -> finisher pool
+            G.GAME.win_ante = 4         
             local boss = mvp_mut_get_new_boss()
             G.GAME.win_ante = saved
             return boss
@@ -542,24 +509,21 @@ function get_new_boss()
     return mvp_mut_get_new_boss()
 end
 
--- Overstocked: adds the surcharge after calculate_reroll_cost sets the base each shop.
 local mvp_mut_calc_reroll = calculate_reroll_cost
 function calculate_reroll_cost(skip_increment)
     mvp_mut_calc_reroll(skip_increment)
-    if mm('mvp_mut_reroll_surcharge') and G.GAME and G.GAME.current_round then
-        local c = MVP.plain(G.GAME.current_round.reroll_cost) or 0
-        G.GAME.current_round.reroll_cost = c + mm('mvp_mut_reroll_surcharge')
+    local cr = G.GAME and G.GAME.current_round
+    if mm('mvp_mut_reroll_surcharge') and cr and (MVP.plain(cr.free_rerolls) or 0) <= 0 then
+        local c = MVP.plain(cr.reroll_cost) or 0
+        cr.reroll_cost = c + mm('mvp_mut_reroll_surcharge')
     end
 end
 
--- Escalation's count lives on G.GAME so it survives a save.
 local mvp_mut_eval_round = G.FUNCS.evaluate_round
 G.FUNCS.evaluate_round = function(...)
     if mm('mvp_mut_escalation') then
         G.GAME.mvp_mut_blinds_beaten = (G.GAME.mvp_mut_blinds_beaten or 0) + 1
     end
-    -- Hoarder: each card held at round end gains permanent mult, accumulated in
-    -- ability.perma_h_mult and applied by the held-in-hand hook below.
     if mm('mvp_mut_hoarder') and G.hand then
         for _, c in ipairs(G.hand.cards) do
             if c.ability then
@@ -567,131 +531,112 @@ G.FUNCS.evaluate_round = function(...)
             end
         end
     end
-    -- Penny Pincher / Aggressive: $1 per unused discard, paid at round end before
-    -- current_round resets for the next blind.
-    if mm('mvp_mut_discard_dollars') and G.GAME.current_round then
-        local left = math.max(0, math.floor(MVP.plain(G.GAME.current_round.discards_left) or 0))
-        if left > 0 and ease_dollars then ease_dollars(left) end
+    if mm('mvp_mut_treasure') and G.GAME.blind and G.GAME.blind.boss
+        and add_tag and Tag and G.P_TAGS and G.P_TAGS.tag_voucher then
+        add_tag(Tag('tag_voucher'))
     end
-    -- No Commitments: the leftmost Joker auto-sells for full value each round, bypassing
-    -- Eternal on purpose - that opt-out is a separate filtered restriction.
+
     if mm('mvp_mut_autosell_leftmost') and G.jokers and G.jokers.cards[1] then
         local c = G.jokers.cards[1]
-        if ease_dollars then ease_dollars(MVP.plain(c.cost) or 0) end   -- full value
+        if ease_dollars then ease_dollars(MVP.plain(c.cost) or 0) end   
         c:start_dissolve()
     end
     return mvp_mut_eval_round(...)
 end
 
--- Shop prices for High Roller / Clearance Sale / Card Pulls / Collector / No Refunds.
-local mvp_mut_set_cost = Card.set_cost
+local mvp_mut_set_cost = Card.set_cost  -- Shop prices for High Roller / Clearance Sale / Card Pulls / Collector / No Refunds.
 function Card:set_cost()
     mvp_mut_set_cost(self)
     local any = mm('mvp_mut_price_mult') or mm('mvp_mut_nonpack_mult')
         or mm('mvp_mut_pack_price_mult') or mm('mvp_mut_joker_surcharge')
-        or mm('mvp_mut_price_flat') or mm('mvp_mut_no_refunds') or mm('mvp_mut_treasure')
+        or mm('mvp_mut_price_flat') or mm('mvp_mut_no_refunds')
     if not any then return end
 
     local set = self.ability and self.ability.set
-    -- Treasure Hunter: shop Vouchers are free; the extra slot is added in apply().
-    if mm('mvp_mut_treasure') and set == 'Voucher' then
-        self.cost = 0
-        self.sell_cost = 0
-        return
+    local c = MVP.plain(self.cost) or 0
+    if c > 0 then
+        if mm('mvp_mut_price_mult') then c = c * mm('mvp_mut_price_mult') end
+        if mm('mvp_mut_nonpack_mult') and set ~= 'Booster' then c = c * mm('mvp_mut_nonpack_mult') end
+        if mm('mvp_mut_pack_price_mult') and set == 'Booster' then c = c * mm('mvp_mut_pack_price_mult') end
+        if mm('mvp_mut_joker_surcharge') and set == 'Joker' then c = c + mm('mvp_mut_joker_surcharge') end
+        if mm('mvp_mut_price_flat') then c = c + mm('mvp_mut_price_flat') end   
+        self.cost = math.max(1, math.floor(c + 0.5))  
     end
 
-    local c = MVP.plain(self.cost) or 0
-    if mm('mvp_mut_price_mult') then c = c * mm('mvp_mut_price_mult') end
-    -- Card Pulls: every non-Booster shop item x2.
-    if mm('mvp_mut_nonpack_mult') and set ~= 'Booster' then c = c * mm('mvp_mut_nonpack_mult') end
-    if mm('mvp_mut_pack_price_mult') and set == 'Booster' then c = c * mm('mvp_mut_pack_price_mult') end
-    if mm('mvp_mut_joker_surcharge') and set == 'Joker' then c = c + mm('mvp_mut_joker_surcharge') end
-    if mm('mvp_mut_price_flat') then c = c + mm('mvp_mut_price_flat') end   -- Clearance Rack -$1
-
-    local floor_c = (self.ability and self.ability.rental) and 0 or 1
-    self.cost = math.max(floor_c, math.floor(c + 0.5))
-    -- Recomputed because set_cost derives sell_cost from cost, so a doubled price would
-    -- otherwise still sell for half the original.
     if mm('mvp_mut_no_refunds') then
         self.sell_cost = 0
     else
-        self.sell_cost = math.max(floor_c, math.floor(self.cost / 2))
+        self.sell_cost = math.max(1, math.floor((MVP.plain(self.cost) or 0) / 2))
             + (self.ability and MVP.plain(self.ability.extra_value) or 0)
     end
+    self.sell_cost_label = self.facing == 'back' and '?' or self.sell_cost
 end
 
--- Rarity: Rare Earth (no Rare), No Common Sense (no Common), Middle Child (no Uncommon),
--- Equality (equal odds among the three).
---
--- poll_rarity must return the rarity NUMBER (1-4), never a string: get_current_pool indexes
--- G.P_JOKER_RARITY_POOLS[rarity], keyed by int, so a string returns an empty pool.
+local BANNED_RARITY = {
+    mvp_mut_no_common   = { Common = true },
+    mvp_mut_no_uncommon = { Uncommon = true },
+    mvp_mut_no_rare     = { Rare = true, Legendary = true },
+}
+
 local mvp_mut_poll_rarity = SMODS.poll_rarity
 function SMODS.poll_rarity(_pool_key, _rand_key)
     if _pool_key ~= 'Joker' then return mvp_mut_poll_rarity(_pool_key, _rand_key) end
     if mm('mvp_mut_random_rarity') then
         return pseudorandom('mvp_mut_rarity', 1, 3)
     end
-    local r = mvp_mut_poll_rarity(_pool_key, _rand_key)
-    -- Re-roll rather than force a value: these only forbid, they don't redistribute.
-    local function banned(x)
-        if mm('mvp_mut_no_common') and (x == 'Common' or x == 1) then return true end
-        if mm('mvp_mut_no_uncommon') and (x == 'Uncommon' or x == 2) then return true end
-        if mm('mvp_mut_no_rare') and (x == 'Rare' or x == 3 or x == 'Legendary' or x == 4) then return true end
-        return false
+
+    local ban
+    for flag, keys in pairs(BANNED_RARITY) do
+        if mm(flag) then ban = keys break end
     end
-    local guard = 0
-    while banned(r) and guard < 20 do
-        guard = guard + 1
-        r = mvp_mut_poll_rarity(_pool_key, _rand_key)
+    local ot = ban and SMODS.ObjectTypes and SMODS.ObjectTypes[_pool_key]
+    if not (ot and ot.rarities) then return mvp_mut_poll_rarity(_pool_key, _rand_key) end
+
+    local kept = {}
+    for _, v in ipairs(ot.rarities) do
+        if not ban[v.key] then kept[#kept + 1] = v end
     end
-    -- Fall back to a rarity that isn't banned.
-    if banned(r) then
-        if not mm('mvp_mut_no_rare') then r = 3
-        elseif not mm('mvp_mut_no_uncommon') then r = 2
-        else r = 1 end
-    end
+    if #kept == 0 then return mvp_mut_poll_rarity(_pool_key, _rand_key) end     -- Nothing left to roll would mean an empty pool and no Jokers at all; leave it alone.
+
+    local saved = ot.rarities
+    ot.rarities = kept
+    local ok, r = pcall(mvp_mut_poll_rarity, _pool_key, _rand_key)
+    ot.rarities = saved   -- restored on the error path too, or every later poll is skewed
+    if not ok then return mvp_mut_poll_rarity(_pool_key, _rand_key) end
     return r
 end
 
--- Rental Market: the sticker is forced in create_card, not via SMODS.Sticker.should_apply.
--- The rental sticker carries `should_apply = false`, which bypasses that class method
--- entirely, so overriding it does nothing.
 local mvp_mut_create_card = create_card
 function create_card(_type, area, legendary, _rarity, skip_materialize, soulable, forced_key, key_append)
     local c = mvp_mut_create_card(_type, area, legendary, _rarity, skip_materialize, soulable, forced_key, key_append)
     if c and c.ability and c.ability.set == 'Joker' then
-        if mm('mvp_mut_all_rental') and not c.ability.rental then
-            c.ability.rental = true
-            if c.set_cost then c:set_cost() end   -- rentals price at $1; recompute
+        if mm('mvp_mut_all_rental') and not c.ability.rental and c.set_rental then -- set_rental/set_eternal rather than a direct ability write
+            c:set_rental(true)
         end
-        -- No Commitments: no Eternal Jokers, so the leftmost stays sellable.
-        if mm('mvp_mut_autosell_leftmost') and c.ability.eternal then
-            c.ability.eternal = false
+        if mm('mvp_mut_autosell_leftmost') and c.ability.eternal and c.set_eternal then -- No Commitments: no Eternal Jokers, so the leftmost stays sellable.
+            c:set_eternal(false)
         end
     end
     return c
 end
 
--- Fallback for rentals that never pass through create_card's shop path.
-local mvp_mut_add_to_deck = Card.add_to_deck
+local mvp_mut_add_to_deck = Card.add_to_deck -- Fallback for rentals that never pass through create_card's shop path.
 function Card:add_to_deck(from_debuff)
     mvp_mut_add_to_deck(self, from_debuff)
     if mm('mvp_mut_all_rental') and self.ability and self.ability.set == 'Joker'
-        and not self.ability.rental then
-        self.ability.rental = true
+        and not self.ability.rental and self.set_rental then
+        self:set_rental(true)
     end
 end
 
--- banned_keys is shared with challenge restrictions; every pool culls through it
--- (get_current_pool, common_events.lua:2439), so one write removes a type everywhere.
 local function ban_pool(pool_key)
     for _, v in ipairs(G.P_CENTER_POOLS[pool_key] or {}) do
         if v.key then G.GAME.banned_keys[v.key] = true end
     end
 end
 
--- Ban a whole consumable type: its cards, its Booster packs, and its skip Tag.
-local CONSUMABLE_BAN = {
+
+local CONSUMABLE_BAN = { -- Ban a whole consumable type: its cards, its Booster packs, and its skip Tag.
     Tarot  = { packs = 'arcana',    tag = 'tag_charm'  },
     Planet = { packs = 'celestial', tag = 'tag_meteor' },
 }
@@ -707,13 +652,7 @@ local function ban_consumable(pool_key)
     G.GAME.banned_keys[cfg.tag] = true
 end
 
--- Poker-hand base values, applied once the hand table exists. Talisman big-ifies every
--- hand field, so writes go back through to_big.
-local function apply_hand_tweaks()
-    -- Chip Focus / Mult Focus: scoped to the poker-hand table only - level-1 base values
-    -- and the per-level Planet gains, so leveling keeps the focus. Not a global scoring
-    -- transform, which would need vanilla to carry decimal chips/mult. Floored (min 1 on
-    -- mult) so no fractional hand values exist.
+local function apply_hand_tweaks() -- Poker-hand base values, applied once the hand table exists.
     local focus = mm('mvp_mut_score_focus')
     if focus and G.GAME.hands then
         local cf = focus == 'chips' and 2 or 0.5
@@ -730,8 +669,7 @@ local function apply_hand_tweaks()
         end
     end
 
-    -- Chaos Theory: randomises each hand's base chips and mult independently, 0.5x-2x.
-    if mm('mvp_mut_chaos_theory') and G.GAME.hands then
+    if mm('mvp_mut_chaos_theory') and G.GAME.hands then  -- Chaos Theory: randomises each hand's base chips and mult independently, 0.5x-2x.
         local function put(h, k, f)
             local b = MVP.plain(h[k]); if not b then return end
             local nv = math.max(1, math.floor(b * f + 0.5))
@@ -761,8 +699,7 @@ local function rebuild_deck()
             if G.P_CENTERS[key] then c:set_ability(G.P_CENTERS[key], true, true) end
         end
     end
-    -- Pick N distinct cards, shared by the random-seal / random-edition mutations.
-    local function pick_cards(n)
+    local function pick_cards(n) -- Pick N distinct cards, shared by the random-seal / random-edition mutations.
         local idx, out = {}, {}
         for i = 1, #G.playing_cards do idx[i] = i end
         for _ = 1, math.min(n, #idx) do
@@ -773,15 +710,13 @@ local function rebuild_deck()
         return out
     end
 
-    -- Broken Deck: N random cards get a random seal.
-    if mm('mvp_mut_random_seals') then
+    if mm('mvp_mut_random_seals') then -- Broken Deck: N random cards get a random seal.
         for _, c in ipairs(pick_cards(mm('mvp_mut_random_seals'))) do
             c:set_seal(SEALS[pseudorandom('mvp_mut_seal', 1, #SEALS)], true, true)
         end
     end
 
-    -- Limited Edition: N random cards get a random edition.
-    if mm('mvp_mut_random_editions') then
+    if mm('mvp_mut_random_editions') then -- Limited Edition: N random cards get a random edition.
         local EDS = { 'e_foil', 'e_holo', 'e_polychrome', 'e_negative' }
         for _, c in ipairs(pick_cards(mm('mvp_mut_random_editions'))) do
             local ek = EDS[pseudorandom('mvp_mut_edition', 1, #EDS)]
@@ -789,8 +724,7 @@ local function rebuild_deck()
         end
     end
 
-    -- Lucky Seven: every 7 becomes a Lucky card with a Red Seal.
-    if mm('mvp_mut_lucky_sevens') and G.P_CENTERS.m_lucky then
+    if mm('mvp_mut_lucky_sevens') and G.P_CENTERS.m_lucky then -- Lucky Seven: every 7 becomes a Lucky card with a Red Seal.
         for _, c in ipairs(G.playing_cards) do
             if (c.get_id and c:get_id()) == 7 then
                 c:set_ability(G.P_CENTERS.m_lucky, true, true)
@@ -799,17 +733,14 @@ local function rebuild_deck()
         end
     end
 
-    -- Rankless: every number card (rank < Jack) becomes a Stone Card.
-    if mm('mvp_mut_numbers_to_stone') and G.P_CENTERS.m_stone then
+    if mm('mvp_mut_numbers_to_stone') and G.P_CENTERS.m_stone then -- Rankless: every number card (rank < Jack) becomes a Stone Card.
         for _, c in ipairs(G.playing_cards) do
             local id = c.get_id and c:get_id() or 0
             if id >= 2 and id < 11 then c:set_ability(G.P_CENTERS.m_stone, true, true) end
         end
     end
 
-    -- Courtless: strips number cards. Face-tripling pads the trimmed deck back up below
-    -- by copying the surviving face cards.
-    if mm('mvp_mut_no_numbers') then
+    if mm('mvp_mut_no_numbers') then -- Courtless
         for i = #G.deck.cards, 1, -1 do
             local c = G.deck.cards[i]
             local id = c.get_id and c:get_id() or 0
@@ -819,7 +750,6 @@ local function rebuild_deck()
             end
         end
         if mm('mvp_mut_triple_faces') then
-            -- Pad to 36 by copying the 12 surviving faces twice.
             local base = {}
             for _, c in ipairs(G.deck.cards) do base[#base + 1] = c end
             for _ = 1, 2 do
@@ -861,8 +791,6 @@ local function rebuild_deck()
         end
     end
 
-    -- Card:remove() already unregisters the card, so G.playing_cards is rebuilt from
-    -- G.deck.cards as the single source of truth rather than removed from both.
     G.playing_cards = {}
     for _, c in ipairs(G.deck.cards) do
         c.playing_card = #G.playing_cards + 1
@@ -878,19 +806,7 @@ end
 -- G.GAME - not a start_run wrapper of its own, which would nest inside the mode's and run
 -- before the keys existed. mvp_mut_applied guards a loaded save, whose modifiers and params
 -- are already baked into the serialised G.GAME.
---
--- Two phases, split around where vanilla start_run reads the loadout:
---
---   Phase 1 (mutations_apply) - runs from a Back:apply_to_run wrapper, before the deck's
---     own apply and before start_run derives dollars/hands/etc. from starting_params.
---     Setting the mutation's base here means the deck perk stacks on top: Poverty sets
---     dollars = 0, Yellow's apply_to_run then does 0 + 10 = 10.
---
---   Phase 2 (mutations_finish) - runs after start_run returns, for the deck rebuild, which
---     needs the live run to exist.
---
--- Keys are injected onto G.GAME inside the apply_to_run wrapper because G.GAME is created
--- fresh by init_game_object inside start_run - it doesn't exist when the Start button fires.
+
 function MVP.mutations_apply()
     if not (G.GAME and G.GAME.mvp_mutations and #G.GAME.mvp_mutations > 0) then return end
     if G.GAME.mvp_mut_applied then return end
@@ -901,38 +817,45 @@ function MVP.mutations_apply()
     if mm('mvp_mut_no_tarots') then ban_consumable('Tarot') end
     if mm('mvp_mut_no_planets') then ban_consumable('Planet') end
 
-    -- Go with the Flow / No Discards: the discard vouchers would be dead buys.
     if mm('mvp_mut_ban_discard_vouchers') then
         G.GAME.banned_keys['v_wasteful'] = true
         G.GAME.banned_keys['v_recyclomancy'] = true
     end
 
-    -- Marathon: win_ante is read by scoring and the win check; set once.
     if mm('mvp_mut_win_ante') then G.GAME.win_ante = mm('mvp_mut_win_ante') end
 
-    -- Shop stock: packs via extra_boosters, vouchers via extra_vouchers, Jokers via
-    -- shop.joker_max. Clearance Rack removes a pack, Overstocked adds one of everything,
-    -- Treasure Hunter adds a free voucher slot.
     local em = mods()
     if mm('mvp_mut_fewer_packs') then em.extra_boosters = (em.extra_boosters or 0) - 1 end
-    if mm('mvp_mut_treasure') then em.extra_vouchers = (em.extra_vouchers or 0) + 1 end
     if mm('mvp_mut_more_stock') then
         em.extra_boosters = (em.extra_boosters or 0) + 1
         em.extra_vouchers = (em.extra_vouchers or 0) + 1
         if G.GAME.shop then G.GAME.shop.joker_max = (G.GAME.shop.joker_max or 2) + 1 end
     end
 
-    -- No Small Talk / Big Brother apply to ante 1 here; reset_blinds handles later antes.
-    apply_blind_hides()
-
+    apply_blind_hides()   -- No Small Talk / Big Brother apply to ante 1 here; reset_blinds handles later antes.
     apply_hand_tweaks()   -- G.GAME.hands already exists here
+end
+
+local SP_FLOOR = { hands = 1, discards = 0, hand_size = 1, joker_slots = 0, consumable_slots = 0 }
+
+function MVP.mutations_post_deck()
+    if not (G.GAME and G.GAME.mvp_mutations and #G.GAME.mvp_mutations > 0) then return end
+    local sp = G.GAME.starting_params
+    if sp then
+        for field, floor_v in pairs(SP_FLOOR) do
+            local v = MVP.plain(sp[field])
+            if v and v < floor_v then sp[field] = floor_v end
+        end
+    end
+    if mm('mvp_mut_spectral_rate') then
+        G.GAME.spectral_rate = math.max(MVP.plain(G.GAME.spectral_rate) or 0,
+                                        mm('mvp_mut_spectral_rate'))
+    end
 end
 
 function MVP.mutations_finish()
     if not (G.GAME and G.GAME.mvp_mutations and #G.GAME.mvp_mutations > 0) then return end
 
-    -- Starting Jokers queued by apply(). Spawned now that G.jokers exists; Negative edition
-    -- so the freebie doesn't consume a slot.
     if G.GAME.mvp_mut_jokers and G.jokers then
         for _, j in ipairs(G.GAME.mvp_mut_jokers) do
             G.E_MANAGER:add_event(Event({ func = function()
@@ -950,20 +873,14 @@ function MVP.mutations_finish()
 end
 
 --============================================================
--- ERRATIC MODE (the mode)
+-- ERRATIC MODE
 --============================================================
--- Not a SMODS.Challenge: no description screen, no completion tick, no slot in the
--- challenge list - just a box that starts an ordinary run with the setup rolled.
 
-local STAKE_MIN, STAKE_MAX = 1, 8   -- White through Gold; the modded stakes stay out
+local STAKE_MIN, STAKE_MAX = 1, 8   -- White through Gold
 
--- Slider storage lives on MVP, not G.GAME, since it's edited on the main menu before any
--- run exists. 0 is legal: no mutations, just the random deck/stake/sleeve.
 local MUT_MIN, MUT_MAX = 0, 8
 MVP.mutation_cfg = MVP.mutation_cfg or { count = 0 }
 
--- create_slider's decimal_places only rounds the label, not the stored value, so every
--- read is floored.
 local function mutation_count()
     local n = math.floor((MVP.mutation_cfg.count or MUT_MIN) + 0.5)
     return math.max(MUT_MIN, math.min(MUT_MAX, n))
@@ -974,8 +891,6 @@ local function best_mutation()
     return (p and p.mvp_best_mutation) or 0
 end
 
--- Per profile, so it survives restarts. Gated on n > 0: a win at slider zero is a
--- random-setup win, not a mutation record.
 local function record_mutation_win()
     local p = G.PROFILES and G.SETTINGS and G.PROFILES[G.SETTINGS.profile]
     if not p then return end
@@ -986,16 +901,14 @@ local function record_mutation_win()
     end
 end
 
--- math.random: runs on the main menu, before a run seed exists. Prismatic is excluded so
--- a random roll can't hand out the strongest deck in the game.
-local EXCLUDE_DECK   = { b_mvp_prismatic = true }
-local EXCLUDE_SLEEVE = { sleeve_mvp_prismatic = true }
+local function is_prismatic(key)
+    return type(key) == 'string' and key:find('prismatic', 1, true) ~= nil
+end
 
 local function random_deck()
     local pool = {}
     for _, v in ipairs(G.P_CENTER_POOLS.Back or {}) do
-        -- `omit` is how the Challenge Deck keeps itself out of deck selection.
-        if v.unlocked and not v.omit and not EXCLUDE_DECK[v.key] then pool[#pool + 1] = v end
+        if v.unlocked and not v.omit and not is_prismatic(v.key) then pool[#pool + 1] = v end
     end
     if #pool == 0 then return G.P_CENTERS.b_red end
     return pool[math.random(1, #pool)]
@@ -1005,7 +918,7 @@ local function random_sleeve_key()
     if not CardSleeves then return nil end
     local pool = {}
     for _, s in pairs(G.P_CENTER_POOLS.Sleeve or {}) do
-        if s.key and s.key ~= 'sleeve_casl_none' and not EXCLUDE_SLEEVE[s.key]
+        if s.key and s.key ~= 'sleeve_casl_none' and not is_prismatic(s.key)
             and (type(s.is_unlocked) ~= 'function' or s:is_unlocked()) then
             pool[#pool + 1] = s.key
         end
@@ -1018,9 +931,7 @@ end
 --============================================================
 -- Starting a run
 --============================================================
--- The rolled run is staged in file-locals, not G.GAME, which doesn't exist until
--- start_run's init_game_object. mvp_pending is consumed the moment G.GAME exists;
--- mvp_finish_pending then tells the start_run wrapper to run Phase 2.
+
 local mvp_pending = nil
 local mvp_finish_pending = false
 
@@ -1028,39 +939,39 @@ G.FUNCS.mvp_start_mutation = function(e)
     if G.OVERLAY_MENU then G.FUNCS.exit_overlay_menu() end
     local deck  = random_deck()
     local stake = math.random(STAKE_MIN, STAKE_MAX)
-    -- CardSleeves derives G.GAME.selected_sleeve from G.viewed_sleeve inside
-    -- init_game_object; writing G.GAME.selected_sleeve directly would be overwritten.
-    if CardSleeves then
+    if CardSleeves then -- If CardSleeves installed
         local sk = random_sleeve_key()
         if sk then G.viewed_sleeve = sk end
     end
-    -- Roll now and stage it; the keys must be on G.GAME before the deck's apply_to_run.
+    if G.GAME then G.GAME.viewed_back = Back(deck) end
     local count = mutation_count()
     mvp_pending = { count = count, keys = MVP.roll_mutations(count) }
-    -- args.deck resolves by name via get_deck_from_name.
     G.FUNCS.start_run(e, { stake = stake, deck = deck })
 end
 
--- Injects the rolled mutation onto the fresh G.GAME and applies Phase 1 before the deck's
--- own perk, so the deck stacks on top. apply_to_run is the first point where G.GAME exists
--- and the deck perk hasn't landed yet.
 local mvp_apply_to_run = Back.apply_to_run
 function Back:apply_to_run(...)
+    local ours = false
     if mvp_pending and G.GAME then
         G.GAME.mvp_mutation = true
         G.GAME.mvp_mutation_count = mvp_pending.count
-        -- Keys, not tables: the autosave cannot serialise apply() closures.
         G.GAME.mvp_mutations = mvp_pending.keys
         mvp_pending = nil
         mvp_finish_pending = true
+        ours = true
         MVP.mutations_apply()   -- before the deck perk below
     end
-    return mvp_apply_to_run(self, ...)
+    local ret = mvp_apply_to_run(self, ...)
+    if ours then MVP.mutations_post_deck() end   -- deck and sleeve have both landed by here
+    return ret
 end
 
 local mvp_erratic_start_run = Game.start_run
 function Game:start_run(args)
     mvp_erratic_start_run(self, args)
+    -- apply_to_run consumes this, but a save load skips that seam entirely, so clear it
+    -- rather than leave a rolled set staged for whatever run starts next.
+    mvp_pending = nil
     if mvp_finish_pending then
         mvp_finish_pending = false
         MVP.mutations_finish()   -- deck rebuild, now that G.deck exists
@@ -1068,7 +979,7 @@ function Game:start_run(args)
 end
 
 --============================================================
--- The Erratic Mode box (Challenges tab)
+-- The Erratic Mode box (in the Challenges tab)
 --============================================================
 local function erratic_box(from_game_over)
     local best = best_mutation()
@@ -1086,7 +997,6 @@ local function erratic_box(from_game_over)
                 minw = 4, scale = 0.4, minh = 0.6,
             }),
         }},
-        -- The slider sits below the button, with the best-completed readout beside it.
         { n = G.UIT.R, config = { align = 'cm', minw = 8.5, padding = 0.1 }, nodes = {
             { n = G.UIT.C, config = { align = 'cm', padding = 0.05 }, nodes = {
                 { n = G.UIT.T, config = { text = 'Mutations', scale = 0.35,
@@ -1106,7 +1016,6 @@ local function erratic_box(from_game_over)
                     colour = best > 0 and G.C.GREEN or G.C.UI.TEXT_INACTIVE, shadow = true } },
             }},
         }},
-        -- Below the slider: opens the full inventory of every mutation.
         { n = G.UIT.R, config = { align = 'cm', padding = 0.05 }, nodes = {
             UIBox_button({
                 label = { 'Mutation List' },
@@ -1121,12 +1030,11 @@ end
 --============================================================
 -- Mutation List overlay (reference inventory of every mutation)
 --============================================================
--- Not every mutation here is fully wired yet; this screen is the inventory, not a promise.
-local function strip_mut_markup(s)
+
+local function strip_markup(s)
     return (tostring(s or ''):gsub('{[^}]*}', ''))
 end
 
--- One mutation entry: name (coloured by category) + effect lines.
 local CAT_COLOUR = { Challenge = G.C.RED, Boon = G.C.GREEN, Twist = G.C.PURPLE }
 local function mutation_entry_rows(mt)
     local rows = {}
@@ -1134,17 +1042,18 @@ local function mutation_entry_rows(mt)
         { n = G.UIT.T, config = { text = mt.name, scale = 0.32,
                                   colour = CAT_COLOUR[mt.category] or G.C.PURPLE, shadow = true } },
     }}
-    rows[#rows + 1] = { n = G.UIT.R, config = { align = 'cl', padding = 0 }, nodes = {
-        { n = G.UIT.T, config = { text = strip_mut_markup(table.concat(mt.text or {}, ' ')),
-                                  scale = 0.24, colour = G.C.UI.TEXT_LIGHT } },
-    }}
+    for _, line in ipairs(mt.text or {}) do
+        rows[#rows + 1] = { n = G.UIT.R, config = { align = 'cl', padding = 0 }, nodes = {
+            { n = G.UIT.T, config = { text = strip_markup(line),
+                                      scale = 0.24, colour = G.C.UI.TEXT_LIGHT } },
+        }}
+    end
     return rows
 end
 
 function G.UIDEF.mvp_mutation_list()
     local list = MVP.MUTATIONS or {}
 
-    -- Two columns, filled column-major so reading runs top-to-bottom.
     local COLS = 2
     local per_col = math.ceil(#list / COLS)
     local columns = {}
@@ -1157,8 +1066,6 @@ function G.UIDEF.mvp_mutation_list()
     end
     local content_row = { n = G.UIT.R, config = { align = 'cm', padding = 0.05 }, nodes = columns }
 
-    -- SMODS.UIScrollBox caps the visible height, SMODS.GUI.scrollbar gives a draggable
-    -- knob; falls back to a plain unscrolled box if this SMODS build lacks them.
     local MAXH = 6.4
     local body
     if SMODS.UIScrollBox and SMODS.GUI and SMODS.GUI.scrollbar then
@@ -1185,8 +1092,6 @@ function G.UIDEF.mvp_mutation_list()
         body = { n = G.UIT.R, config = { align = 'cm', padding = 0.05, r = 0.1, colour = G.C.BLACK }, nodes = { content_row } }
     end
 
-    -- back_func returns to the run-setup screen, the same target vanilla's challenge list
-    -- uses; exit_overlay_menu would dump the player to the main menu instead.
     return create_UIBox_generic_options({
         back_func = 'setup_run',
         contents = {
@@ -1199,9 +1104,6 @@ function G.UIDEF.mvp_mutation_list()
     })
 end
 
--- No G.OVERLAY_MENU guard: the Erratic Mode box lives inside G.UIDEF.challenges, itself
--- rendered in the run-setup overlay, so that guard is always set when this button is
--- reachable. Vanilla's sibling button (challenge_list) replaces the overlay unguarded.
 G.FUNCS.mvp_mutation_list = function(e)
     G.SETTINGS.paused = true
     G.FUNCS.overlay_menu{ definition = G.UIDEF.mvp_mutation_list() }
@@ -1210,8 +1112,6 @@ end
 local mvp_uidef_challenges = G.UIDEF.challenges
 function G.UIDEF.challenges(from_game_over)
     local t = mvp_uidef_challenges(from_game_over)
-    -- The locked-profile early return has no G.C.BLACK first node; a live Start button
-    -- must not appear on a screen that says challenges aren't unlocked.
     local first = t and t.nodes and t.nodes[1]
     if not (first and first.config and first.config.colour == G.C.BLACK) then return t end
     table.insert(t.nodes, 2, erratic_box(from_game_over))
@@ -1221,11 +1121,6 @@ end
 --============================================================
 -- View Deck: the Mutations tab
 --============================================================
-local function strip_markup(s)
-    -- Mutation text carries Balatro colour markup, which plain G.UIT.T nodes don't parse.
-    return (tostring(s or ''):gsub('{[^}]*}', ''))
-end
-
 function G.UIDEF.mvp_mutations_tab(args)
     local rows = {}
     for _, mt in ipairs(MVP.mutation_list()) do
@@ -1247,7 +1142,6 @@ function G.UIDEF.mvp_mutations_tab(args)
     return { n = G.UIT.ROOT, config = { align = 'cm', padding = 0.1, colour = G.C.CLEAR, minw = 8 }, nodes = rows }
 end
 
--- Rebuilds vanilla's tab list plus ours, only on Erratic runs that carry mutations.
 local mvp_deck_info = G.UIDEF.deck_info
 function G.UIDEF.deck_info(_show_remaining)
     if not (G.GAME and G.GAME.mvp_mutation and G.GAME.mvp_mutations
@@ -1271,7 +1165,6 @@ end
 local mvp_erratic_update = Game.update
 function Game:update(dt)
     mvp_erratic_update(self, dt)
-    -- The win is reachable from several paths; the latch keeps this to one write.
     if G.GAME and G.GAME.mvp_mutation and G.GAME.won and not G.GAME.mvp_win_recorded then
         G.GAME.mvp_win_recorded = true
         record_mutation_win()
