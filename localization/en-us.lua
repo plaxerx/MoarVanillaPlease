@@ -41,6 +41,7 @@ return {
             ch_c_mvp_baby           = { "{C:attention}Jokers{} only add {C:chips}Chips{}, {C:mult}Mult{} and {C:money}money{}" },
             ch_c_mvp_baby_jokers    = { "No {C:attention}XMult{}, retriggers, copying or destruction" },
             ch_c_mvp_baby_bosses    = { "Boss Blinds have no ability. Blinds cannot be skipped" },
+            ch_c_mvp_baby_scaling   = { "Blind sizes are about {C:attention}25%{} of normal" },
             -- Pinochle
             -- localize{type='text'} returns after the FIRST line, so one entry per rule row
             ch_c_mvp_sandbox       = { "Training for Ante 39 goals" },
