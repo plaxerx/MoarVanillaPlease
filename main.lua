@@ -83,6 +83,25 @@ assert(SMODS.load_file('erratic.lua'))()
 assert(SMODS.load_file('peek.lua'))()
 
 --============================================================
+-- Whole mods
+--============================================================
+-- Moar Themes, Moar Stats and Steady Frames run unchanged from their subfolders. Each sets
+-- SMODS.current_mod.config_tab for its standalone menu; those become the bundle's extra
+-- tabs, and the Peek Store tab below stays the bundle's main one.
+assert(SMODS.load_file('themes/main.lua'))()
+local themes_tab = SMODS.current_mod.config_tab
+assert(SMODS.load_file('stats/main.lua'))()
+local stats_tab = SMODS.current_mod.config_tab
+assert(SMODS.load_file('steadyframes/main.lua'))()
+
+SMODS.current_mod.extra_tabs = function()
+    return {
+        { label = 'Themes', tab_definition_function = themes_tab },
+        { label = 'Stats', tab_definition_function = stats_tab },
+    }
+end
+
+--============================================================
 -- Config tab (SMODS mod menu)
 --============================================================
 -- SMODS loads config.lua as defaults, overlays the saved config, and saves on menu exit.

@@ -6,3 +6,6 @@ HANDOFF.md
 .aider*
 .cursor/
 .github/copilot*
+
+# Build tooling - regenerates the bundle from the component mods; not part of the mod
+tools/

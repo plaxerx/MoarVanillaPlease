@@ -46,20 +46,36 @@ local function set_blinds(tier)
     mods.mvp_blind_tier = math.max(mods.mvp_blind_tier or 0, tier)
 end
 
-local mvp_get_new_boss = get_new_boss -- Mythic and beyond's new ante victory requirement
-function get_new_boss()
+-- Mythic and beyond's new ante victory requirement. `roll` is whichever Boss roll is being
+-- wrapped.
+local function boss_cadence(roll, ...)
     local mods = G.GAME and G.GAME.modifiers
     if mods and mods.mvp_boss_cadence and G.GAME.round_resets and G.GAME.win_ante then
         local a = G.GAME.round_resets.ante
         if a > 0 and a % 8 == 0 and a % G.GAME.win_ante ~= 0 then
             local saved = G.GAME.win_ante
             G.GAME.win_ante = 8
-            local boss = mvp_get_new_boss()
+            local boss = roll(...)
             G.GAME.win_ante = saved
             return boss
         end
     end
-    return mvp_get_new_boss()
+    return roll(...)
+end
+
+local mvp_get_new_boss = get_new_boss
+function get_new_boss()
+    return boss_cadence(mvp_get_new_boss)
+end
+
+-- Steamodded 26.x rolls each Ante's Boss through SMODS.get_new_blind and keeps get_new_boss
+-- for the Boss reroll and the Boss Tag, so the cadence sits on both.
+if SMODS.get_new_blind then
+    local mvp_get_new_blind = SMODS.get_new_blind
+    function SMODS.get_new_blind(blind_type, ...)
+        if blind_type ~= nil and blind_type ~= 'boss' then return mvp_get_new_blind(blind_type, ...) end
+        return boss_cadence(mvp_get_new_blind, blind_type, ...)
+    end
 end
 
 --============================================================

@@ -116,9 +116,11 @@ get_blind_amount = function(ante)
     return base_get_blind_amount(ante)
 end
 
+-- OmegaNum only. BigAnte is session-wide, so forcing it gave every later run a big-number
+-- ante, which crashes mods that loop over antes (Cartomancer's blind info). These curves
+-- take a plain ante.
 local function force_amulet_features()
     Talisman.forced_features.force_omeganum()
-    Talisman.forced_features.force_bigante()
 end
 
 local function set_commander_scoring()
@@ -141,6 +143,11 @@ local start_run_ref = Game.start_run
 function Game:start_run(args)
     start_run_ref(self, args)
     if not (G.GAME and G.GAME.modifiers) then return end
+    -- Runs saved while BigAnte was forced still load with a big ante.
+    local ante = G.GAME.round_resets and G.GAME.round_resets.ante
+    if ante and is_big and is_big(ante) and not Talisman.big_ante.has() then
+        Talisman.big_ante.disable()
+    end
     if G.GAME.modifiers.mvp_captain then
         set_captain_scoring()
     elseif G.GAME.modifiers.mvp_commander then

@@ -1,4 +1,4 @@
--- Moar Challenges Please - challenges 21-50 (if counting from Vanilla).
+-- Moar Challenges Please - challenges 21-51 (if counting from Vanilla).
 
 local function m(id) return G.GAME and G.GAME.modifiers and G.GAME.modifiers[id] end
 
@@ -27,6 +27,7 @@ G.FUNCS.can_reroll = function(e)
     if m('mvp_no_reroll') then
         e.config.colour = G.C.UI.BACKGROUND_INACTIVE
         e.config.button = nil
+        e.config.hover = false   -- no hover shade, as on a greyed-out Skip
     end
 end
 
@@ -262,12 +263,13 @@ function SMODS.calculate_destroying_cards(context, cards_destroyed, scoring_hand
     end
 end
 
+-- Rust lives on ability so it survives a save and reload.
 local mvp_draw_discard = G.FUNCS.draw_from_play_to_discard
 G.FUNCS.draw_from_play_to_discard = function(e)
     if m('mvp_rusty_deck') and G.play then
         for _, c in ipairs(G.play.cards) do
-            if SMODS.has_enhancement and SMODS.has_enhancement(c, 'm_steel') and not c.mvp_rusted then
-                c.mvp_rusted = true
+            if SMODS.has_enhancement and SMODS.has_enhancement(c, 'm_steel') and not c.ability.mvp_rusted then
+                c.ability.mvp_rusted = true
                 c:set_debuff(true)
                 c:juice_up(0.3, 0.3)
                 play_sound('card1', 1)
@@ -386,11 +388,51 @@ function Card:calculate_joker(context, ...)
 end
 
 --============================================================
+-- Saturn stacking (33)
+--============================================================
+-- Saturn stacks Negative consumables. Its split and split-all write back an absolute
+-- card_limit that already holds the Negative's own slot, and SMODS card_limits counts that
+-- slot again, so every use from a stack leaves a phantom consumable slot. The area's own
+-- modifier is restored around both, in this mod's runs only.
+
+local function mvp_challenge()
+    return type(G.GAME.challenge) == 'string' and G.GAME.challenge:find('^c_mvp_') ~= nil
+end
+
+local saturn_guarded = false
+
+local function guard_saturn_slots()
+    if saturn_guarded or not (Saturn and Card.split and Card.dissolve_stack) then return end
+    saturn_guarded = true
+
+    local mvp_split = Card.split
+    function Card:split(...)
+        local limits = mvp_challenge() and G.consumeables and G.consumeables.config.card_limits
+        local mod = limits and limits.mod
+        local ret = mvp_split(self, ...)
+        if limits then limits.mod = mod end
+        return ret
+    end
+
+    local mvp_dissolve_stack = Card.dissolve_stack
+    function Card:dissolve_stack(...)
+        local limits = mvp_challenge() and G.consumeables and G.consumeables.config.card_limits
+        local mod = limits and limits.mod
+        local ret = mvp_dissolve_stack(self, ...)
+        if limits then -- split-all runs on Saturn's 'other' queue, so restore behind it
+            G.E_MANAGER:add_event(Event({ func = function() limits.mod = mod; return true end }), 'other')
+        end
+        return ret
+    end
+end
+
+--============================================================
 -- Run-shape hooks
 --============================================================
 local mvp_start_run = Game.start_run
 function Game:start_run(args)
     mvp_start_run(self, args)
+    guard_saturn_slots() -- every mod has loaded by the first run, Saturn included
     if not (G.GAME and G.GAME.modifiers) then return end
     if m('mvp_half_a_hand') then
         if G.hand then G.hand.config.highlighted_limit = 3 end
@@ -407,27 +449,41 @@ function Game:start_run(args)
     end
 end
 
+-- 33: Chicot shatters the moment the run reaches Ante 8, Eternal or not.
+local function shatter_chicot()
+    G.GAME.mvp_chicot_destroyed = true
+    for i = #G.jokers.cards, 1, -1 do
+        local c = G.jokers.cards[i]
+        if c.config.center.key == 'j_chicot' then
+            c.getting_sliced = true
+            c:shatter()
+        end
+    end
+end
+
 local mvp_ease_ante = ease_ante
 function ease_ante(mod)
     mvp_ease_ante(mod)
-    if m('mvp_final_form') and G.jokers and MVP.plain(mod) and MVP.plain(mod) > 0 then
-        G.jokers.config.card_limit = G.jokers.config.card_limit + 1
+    if m('mvp_final_form') and G.jokers and (MVP.plain(mod) or 0) > 0 then
+        G.jokers:change_size(1)
     end
-    if m('mvp_legendary_twist') and G.jokers and not G.GAME.mvp_chicot_destroyed     -- Chicot is destroyed on reaching Ante 8 and bypasses Eternal.
-        and G.GAME.round_resets and (MVP.plain(G.GAME.round_resets.ante) or 0) >= 8 then
-        G.GAME.mvp_chicot_destroyed = true
-        for i = #G.jokers.cards, 1, -1 do
-            local c = G.jokers.cards[i]
-            local ck = c.config and (c.config.center_key or (c.config.center and c.config.center.key))
-            if ck == 'j_chicot' then c:start_dissolve() end
-        end
+    -- Vanilla moves the ante inside an event (common_events.lua:203), so read it from one
+    -- queued behind that.
+    if m('mvp_legendary_twist') and not G.GAME.mvp_chicot_destroyed then
+        G.E_MANAGER:add_event(Event({ func = function()
+            if G.jokers and not G.GAME.mvp_chicot_destroyed
+                and (MVP.plain(G.GAME.round_resets.ante) or 0) >= 8 then
+                shatter_chicot()
+            end
+            return true
+        end }))
     end
 end
 
 local mvp_get_blind_amount = get_blind_amount
 function get_blind_amount(ante)
     local base = mvp_get_blind_amount(ante)
-    if m('mvp_double_down') and ante and ante > 1 then
+    if m('mvp_double_down') and (MVP.plain(ante) or 0) > 1 then
         return (to_big and to_big(base) or base) * 2
     end
     return base
@@ -482,84 +538,9 @@ function reset_blinds()
     end
 end
 
---============================================================
--- Baby's First Balatro rules (51)
---============================================================
--- The Wall and Violet Vessel are the only vanilla bosses with no ability at all,
--- so every Boss round is one of those two and differs only in score requirement.
-
-local BABY_BOSS, BABY_FINAL = 'bl_wall', 'bl_final_vessel'
-
-local function baby_boss_mult(ante)
-    if ante >= 8 then return 6 end   -- Very Large Blind
-    if ante == 7 then return 4 end   -- Extra Large Blind
-    return 2                         -- same size as a normal Boss
-end
-
--- About a quarter of White Stake. Ante 0 and 1 are pinned to the numbers a first run
--- should open on; from Ante 2 up it is a flat quarter of vanilla, endless included.
-local BABY_AMOUNTS = { [0] = 25, [1] = 100 }
-
-local mvp_get_blind_amount = get_blind_amount
-function get_blind_amount(ante)
-    if not m('mvp_baby') then return mvp_get_blind_amount(ante) end
-    local plain = MVP.plain(ante)
-    if plain and BABY_AMOUNTS[plain] then return BABY_AMOUNTS[plain] end
-    return mvp_get_blind_amount(ante) * 0.25
-end
-
-local mvp_get_new_boss = get_new_boss
-function get_new_boss()
-    if not m('mvp_baby') then return mvp_get_new_boss() end
-    local rr = G.GAME.round_resets
-    local ante = MVP.plain(rr and rr.ante) or 1
-    local win = MVP.plain(G.GAME.win_ante) or 8
-    local key = (ante >= 2 and ante % win == 0) and BABY_FINAL or BABY_BOSS
-    G.GAME.bosses_used[key] = (G.GAME.bosses_used[key] or 0) + 1
-    return key
-end
-
-local mvp_set_blind_baby = Blind.set_blind
-function Blind:set_blind(blind, reset, silent)
-    mvp_set_blind_baby(self, blind, reset, silent)
-    if reset or not (m('mvp_baby') and blind and blind.boss) then return end
-    local rr = G.GAME.round_resets
-    local ante = MVP.plain(rr and rr.ante) or 1
-    self.mult = baby_boss_mult(ante)
-    self.chips = get_blind_amount(rr.ante) * self.mult * G.GAME.starting_params.ante_scaling
-end
-
-local mvp_skip_blind = G.FUNCS.skip_blind
-G.FUNCS.skip_blind = function(e)
-    if m('mvp_baby') then return end
-    return mvp_skip_blind(e)
-end
-
--- Editions, seals and stickers are polled rather than drawn from a pool, so
--- banned_keys does not reach them.
-local mvp_poll_edition = poll_edition
-function poll_edition(...)
-    local ed = mvp_poll_edition(...)
-    if m('mvp_baby') and type(ed) == 'table' and (ed.polychrome or ed.negative) then return nil end
-    return ed
-end
-
-if SMODS.poll_seal then
-    local mvp_poll_seal = SMODS.poll_seal
-    function SMODS.poll_seal(...)
-        if m('mvp_baby') then return nil end
-        return mvp_poll_seal(...)
-    end
-end
-
-if SMODS.Sticker and SMODS.Sticker.should_apply then
-    local mvp_should_apply = SMODS.Sticker.should_apply
-    function SMODS.Sticker:should_apply(card, center, area, rate)
-        if m('mvp_baby') then return false end
-        return mvp_should_apply(self, card, center, area, rate)
-    end
-end
-
+-- Reports the slot a blind sits in, so bookkeeping keyed on blind type treats a Boss in the
+-- Small/Big slot as that slot. mvp_true_blind_type suspends this for callers really asking
+-- "is this a Boss Blind".
 local mvp_get_type = Blind.get_type
 function Blind:get_type()
     if not (G.GAME and G.GAME.mvp_true_blind_type)
@@ -569,6 +550,8 @@ function Blind:get_type()
     return mvp_get_type(self)
 end
 
+-- Luchador gates its disable on get_type() == 'Boss' and is the one tool The Trial hands
+-- you, so its sell and its tooltip both get the true answer.
 local mvp_sell_card = Card.sell_card
 function Card:sell_card()
     local luchador = self.ability and self.ability.name == 'Luchador'
@@ -590,6 +573,142 @@ function Card:generate_UIBox_ability_table(vars_only)
 end
 
 --============================================================
+-- Baby's First Balatro rules (51)
+--============================================================
+-- The Wall and Violet Vessel are the only vanilla bosses with no ability at all,
+-- so every Boss round is one of those two and differs only in score requirement.
+
+local BABY_BOSS, BABY_FINAL = 'bl_wall', 'bl_final_vessel'
+
+local function baby_boss_mult(ante)
+    if ante >= 8 then return 6 end   -- Very Large Blind
+    if ante == 7 then return 4 end   -- Extra Large Blind
+    return 2                         -- same size as a normal Boss
+end
+
+-- About a quarter of White Stake. Ante 0 and 1 are pinned to the numbers a first run
+-- should open on; from Ante 2 up it is a flat quarter of vanilla, endless included.
+local BABY_AMOUNTS = { [0] = 25, [1] = 100 }
+
+local mvp_get_blind_amount_baby = get_blind_amount
+function get_blind_amount(ante)
+    if not m('mvp_baby') then return mvp_get_blind_amount_baby(ante) end
+    local fixed = BABY_AMOUNTS[MVP.plain(ante)]
+    if fixed then return to_big and to_big(fixed) or fixed end
+    return mvp_get_blind_amount_baby(ante) * 0.25
+end
+
+local function baby_boss()
+    if not m('mvp_baby') then return nil end
+    local rr = G.GAME.round_resets
+    local ante = MVP.plain(rr and rr.ante) or 1
+    local win = MVP.plain(G.GAME.win_ante) or 8
+    local key = (ante >= 2 and ante % win == 0) and BABY_FINAL or BABY_BOSS
+    G.GAME.bosses_used[key] = (G.GAME.bosses_used[key] or 0) + 1
+    return key
+end
+
+local mvp_get_new_boss = get_new_boss
+function get_new_boss()
+    return baby_boss() or mvp_get_new_boss()
+end
+
+-- Steamodded 26.x rolls each Ante's Boss through SMODS.get_new_blind and keeps get_new_boss
+-- for the Boss reroll and the Boss Tag, so the fixed Boss sits on both.
+if SMODS.get_new_blind then
+    local mvp_get_new_blind = SMODS.get_new_blind
+    function SMODS.get_new_blind(blind_type, ...)
+        if blind_type == nil or blind_type == 'boss' then
+            local key = baby_boss()
+            if key then return key end
+        end
+        return mvp_get_new_blind(blind_type, ...)
+    end
+end
+
+-- Vanilla reads blind.mult for the size it scores, prints and previews. The two bosses are
+-- resized only for the length of each such call, so the shared prototypes stay stock.
+local function with_baby_mult(ante, fn, ...)
+    local mult = baby_boss_mult(MVP.plain(ante) or 1)
+    local wall, vessel = G.P_BLINDS[BABY_BOSS], G.P_BLINDS[BABY_FINAL]
+    local wall_mult, vessel_mult = wall.mult, vessel.mult
+    wall.mult, vessel.mult = mult, mult
+    local ret = fn(...)
+    wall.mult, vessel.mult = wall_mult, vessel_mult
+    return ret
+end
+
+local mvp_set_blind_baby = Blind.set_blind
+function Blind:set_blind(blind, reset, silent)
+    if reset or not (m('mvp_baby') and blind and blind.boss) then
+        return mvp_set_blind_baby(self, blind, reset, silent)
+    end
+    with_baby_mult(G.GAME.round_resets.ante, mvp_set_blind_baby, self, blind, reset, silent)
+end
+
+-- The blind select screen and Run Info both build their score preview here.
+local mvp_blind_choice = create_UIBox_blind_choice
+function create_UIBox_blind_choice(type, run_info)
+    if not m('mvp_baby') then return mvp_blind_choice(type, run_info) end
+    local rr = G.GAME.round_resets
+    return with_baby_mult(rr.blind_ante or rr.ante, mvp_blind_choice, type, run_info)
+end
+
+-- At normal Boss size The Wall's own text ("Extra large blind") would be wrong.
+SMODS.Blind:take_ownership('wall', {
+    loc_vars = function(self)
+        if G.STAGE == G.STAGES.RUN and m('mvp_baby')
+            and baby_boss_mult(MVP.plain(G.GAME.round_resets.ante) or 1) < 4 then
+            return { key = 'bl_mvp_baby_wall' }
+        end
+    end,
+}, true)
+
+-- No skipping: a nil tag UI drops both the Tag and its Skip button, the same way vanilla
+-- hides them during the tutorial. The skip_blind guard closes any other route in.
+local mvp_blind_tag = create_UIBox_blind_tag
+function create_UIBox_blind_tag(blind_choice, run_info)
+    if m('mvp_baby') then return nil end
+    return mvp_blind_tag(blind_choice, run_info)
+end
+
+local mvp_skip_blind = G.FUNCS.skip_blind
+G.FUNCS.skip_blind = function(e)
+    if m('mvp_baby') then return end
+    return mvp_skip_blind(e)
+end
+
+-- Editions, seals and stickers are polled rather than drawn from a pool, so
+-- banned_keys does not reach them. Steamodded's poll_edition hands back a key ('e_negative');
+-- vanilla's, and some mods' wrappers, hand back a table ({ negative = true }).
+local BABY_NO_EDITION = { e_polychrome = true, e_negative = true }
+local mvp_poll_edition = poll_edition
+function poll_edition(...)
+    local ed = mvp_poll_edition(...)
+    if m('mvp_baby') then
+        if type(ed) == 'string' and BABY_NO_EDITION[ed] then return nil end
+        if type(ed) == 'table' and (ed.polychrome or ed.negative) then return nil end
+    end
+    return ed
+end
+
+if SMODS.poll_seal then
+    local mvp_poll_seal = SMODS.poll_seal
+    function SMODS.poll_seal(...)
+        if m('mvp_baby') then return nil end
+        return mvp_poll_seal(...)
+    end
+end
+
+if SMODS.Sticker and SMODS.Sticker.should_apply then
+    local mvp_should_apply = SMODS.Sticker.should_apply
+    function SMODS.Sticker:should_apply(card, center, area, rate)
+        if m('mvp_baby') then return false end
+        return mvp_should_apply(self, card, center, area, rate)
+    end
+end
+
+--============================================================
 -- Debuffs (37 / 43)
 --============================================================
 
@@ -597,7 +716,7 @@ local mvp_card_set_debuff = Card.set_debuff
 function Card:set_debuff(should_debuff)
     local playing = self.ability and (self.ability.set == 'Default' or self.ability.set == 'Enhanced')
     if playing and m('mvp_wild_west') and not is_wild(self) then should_debuff = true end
-    if self.mvp_rusted then should_debuff = true end
+    if self.ability and self.ability.mvp_rusted then should_debuff = true end
     return mvp_card_set_debuff(self, should_debuff)
 end
 
@@ -751,11 +870,6 @@ local ban_spectral_packs = pool_ids('Booster', function(v)
     return v.kind == 'Spectral' or (v.key or ''):find('spectral')
 end)
 
--- Skipping is prevented rather than removed, so the button still draws. These two are
--- worth collecting if a Blind is skipped anyway.
-local BABY_TAGS = { tag_investment = true, tag_coupon = true }
-local ban_nonbaby_tags = pool_whitelist('Tag', BABY_TAGS)
-
 
 local ban_unlockable_jokers = pool_ids('Joker', function(v)
     if v.rarity == 4 or v.rarity == 'Legendary' then return false end
@@ -810,6 +924,7 @@ challenge('black_market', 'Black Market', { custom = { { id = 'mvp_black_market'
 challenge('thrift_store', 'Thrift Store', {
     custom = { { id = 'mvp_thrift_store' }, { id = 'mvp_no_reroll' } },
     vouchers = { { id = 'v_overstock_norm' }, { id = 'v_overstock_plus' } },
+    banned_cards = { { id = 'v_reroll_surplus' }, { id = 'v_reroll_glut' } },
 })
 challenge('impulse_buyer', 'Impulse Buyer', { custom = { { id = 'mvp_impulse_buyer' } } })
 challenge('homeless', 'Homeless', {
@@ -948,7 +1063,8 @@ challenge('baby', "Baby's First Balatro", {
         { id = 'dollars',     value = 10 },  -- vanilla 4
         { id = 'joker_slots', value = 5 },
     },
+    -- No banned_tags: with skipping gone no Tag can be earned, and a list past 19 Tags draws
+    -- at a negative scale on the Restrictions screen (UI_definitions.lua:6355).
     banned_cards = merge_pools(ban_nonbaby_jokers, ban_nonbaby_tarots, ban_nonbaby_vouchers,
                                ban_spectrals, ban_spectral_packs),
-    banned_tags = ban_nonbaby_tags,
 })

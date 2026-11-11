@@ -14,7 +14,7 @@ local function grant_vouchers(keys, as_starting)
             G.E_MANAGER:add_event(Event({ func = function()
                 local ok, err = pcall(Card.apply_to_run, nil, G.P_CENTERS[v])
                 if not ok then
-                    sendWarnMessage(('voucher %s failed: %s'):format(v, tostring(err)), 'Pinochle')
+                    sendWarnMessage(('voucher %s failed: %s'):format(v, tostring(err)), 'MoarVanillaPlease')
                 end
                 return true
             end }))

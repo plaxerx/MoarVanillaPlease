@@ -1,0 +1,583 @@
+-- Moar Themes Please - the stock themes that ship with the mod.
+--
+-- Each is the theme-file text a player would write, plus an optional `tint` laid over EVERY
+-- registered color first: 'gray' maps a color to its luminance, { hue, sat } swaps its hue and
+-- saturation and keeps its lightness. The tint is what reaches boss blinds, hand levels and
+-- modded colors no hand-written list could name; the text then sets the colors that carry
+-- the look. Stock names are reserved: a player cannot save over one.
+
+--============================================================
+-- Tints
+--============================================================
+local function to_hsl(r, g, b)
+    local mx, mn = math.max(r, g, b), math.min(r, g, b)
+    local l = (mx + mn) / 2
+    if mx == mn then return 0, 0, l end
+    local d = mx - mn
+    local s = (l > 0.5) and d / (2 - mx - mn) or d / (mx + mn)
+    local h
+    if mx == r then h = (g - b) / d + (g < b and 6 or 0)
+    elseif mx == g then h = (b - r) / d + 2
+    else h = (r - g) / d + 4 end
+    return h * 60, s, l
+end
+
+local function from_hsl(h, s, l)
+    if s == 0 then return l, l, l end
+    local function hue(p, q, t)
+        if t < 0 then t = t + 1 end
+        if t > 1 then t = t - 1 end
+        if t < 1 / 6 then return p + (q - p) * 6 * t end
+        if t < 1 / 2 then return q end
+        if t < 2 / 3 then return p + (q - p) * (2 / 3 - t) * 6 end
+        return p
+    end
+    local q = (l < 0.5) and l * (1 + s) or l + s - l * s
+    local p = 2 * l - q
+    h = h / 360
+    return hue(p, q, h + 1 / 3), hue(p, q, h), hue(p, q, h - 1 / 3)
+end
+
+local function tinted(c, tint)
+    if tint == 'gray' then
+        local y = 0.299 * c[1] + 0.587 * c[2] + 0.114 * c[3]
+        return { y, y, y, c[4] or 1 }
+    end
+    local _, _, l = to_hsl(c[1], c[2], c[3])
+    local r, g, b = from_hsl(tint.hue, tint.sat, l)
+    return { r, g, b, c[4] or 1 }
+end
+
+--============================================================
+-- Themes
+--============================================================
+MTP.STOCK = {
+{ name = 'America', text = [[
+# Old Glory Red B22234 / Old Glory Blue 3C3B6E / White / Gold D4AF37
+RED = B22234
+MULT = F5213B
+XMULT = F5213B
+BLUE = 174BDE
+CHIPS = 2560F9
+GREEN = E2AF0E
+PALE_GREEN = BA9428
+CHANCE = D4AF37
+ORANGE = A00820
+FILTER = FFC641
+IMPORTANT = FFC641
+GOLD = D4AF37
+MONEY = FFCA38
+YELLOW = FFD84D
+PURPLE = 41319D
+BLIND_SIZE = F73348
+BLACK = 1A1938
+L_BLACK = 3C3B6E
+GREY = 595892
+JOKER_GREY = D4AF37
+UI.TEXT_DARK = 2E2D5C
+UI.TEXT_INACTIVE = 9A99C299
+UI.BACKGROUND_LIGHT = D9DAF1
+UI.BACKGROUND_DARK = 5F5EB2
+UI.BACKGROUND_INACTIVE = 53517D
+UI.OUTLINE_LIGHT = E1E1F0
+UI.OUTLINE_LIGHT_TRANS = E1E1F066
+UI.OUTLINE_DARK = 5F5EB2
+VOUCHER = E2AF0E
+BOOSTER = 3D4DC7
+SET.Default = E2E2F1
+SET.Enhanced = E2E2F1
+SET.Joker = 262465
+SET.Tarot = 262465
+SET.Planet = 262465
+SET.Spectral = 262465
+SET.Voucher = 262465
+SECONDARY_SET.Default = 9B9FD4
+SECONDARY_SET.Joker = 5F5EB2
+SECONDARY_SET.Planet = 2190F9
+SECONDARY_SET.Spectral = 174BDE
+SECONDARY_SET.Voucher = D4AF37
+RARITY.1 = 174BDE
+RARITY.2 = E2AF0E
+RARITY.3 = B22234
+RARITY.4 = 793CD7
+BLIND.Small = 223287
+BLIND.Big = 223287
+BLIND.Boss = B22234
+BLIND.won = 3C3B6E
+MTP.MENU_BUTTON = ECBC1F
+MTP.MOD_BUTTON = C80C23
+HAND_LEVELS.1 = F2F2F7
+HAND_LEVELS.2 = A9B8F5
+HAND_LEVELS.3 = 7D96F0
+HAND_LEVELS.4 = F5D77A
+HAND_LEVELS.5 = E9BE45
+HAND_LEVELS.6 = F27D8A
+HAND_LEVELS.7 = E8475A
+]] },
+
+{ name = 'Noir', tint = 'gray', text = [[
+# Every color in grayscale. Mult reads light and Chips dark so the two never blur together.
+BLACK = 121212
+L_BLACK = 3A3A3A
+GREY = 5E5E5E
+JOKER_GREY = BDBDBD
+RED = 8C8C8C
+MULT = 8A8A8A
+XMULT = 8A8A8A
+BLUE = 4F4F4F
+CHIPS = 5A5A5A
+GREEN = 6B6B6B
+ORANGE = 5E5E5E
+FILTER = A6A6A6
+IMPORTANT = A6A6A6
+GOLD = 9A9A9A
+MONEY = B0B0B0
+BLIND_SIZE = B5B5B5
+UI.TEXT_DARK = 1C1C1C
+UI.BACKGROUND_LIGHT = D6D6D6
+UI.BACKGROUND_DARK = 7A7A7A
+UI.OUTLINE_DARK = 7A7A7A
+BLIND.Small = 202020
+BLIND.Big = 202020
+BLIND.Boss = 505050
+BLIND.won = 2E2E2E
+MTP.MENU_BUTTON = 9A9A9A
+MTP.MOD_BUTTON = 5E5E5E
+HAND_LEVELS.1 = EFEFEF
+HAND_LEVELS.2 = DCDCDC
+HAND_LEVELS.3 = C8C8C8
+HAND_LEVELS.4 = B4B4B4
+HAND_LEVELS.5 = A0A0A0
+HAND_LEVELS.6 = 8C8C8C
+HAND_LEVELS.7 = 787878
+]] },
+
+{ name = 'Pride', text = [[
+# The main menu reads as the rainbow left to right: Profile red, Play orange, Options yellow,
+# Quit green, Collection blue, Mods indigo, language violet. Every other color follows the
+# button it shares a palette entry with: Chips with Play, Mult with Quit, go buttons with
+# Collection. Yellow is E8B800, the brightest that white lettering still reads on.
+RED = 008026
+MULT = 1FB84A
+XMULT = 1FB84A
+ORANGE = E8B800
+FILTER = FFD000
+IMPORTANT = FFD000
+YELLOW = FFED00
+GOLD = FFC400
+MONEY = FFD60A
+GREEN = 1F5BFF
+PALE_GREEN = 004DFF
+CHANCE = 5C8DFF
+BLUE = FF8C00
+CHIPS = FF9A1F
+PURPLE = 9400D3
+BLIND_SIZE = FF3B3B
+BLACK = 241F2C
+L_BLACK = 453C53
+GREY = 5A506D
+JOKER_GREY = B042DB
+UI.TEXT_DARK = 241F2C
+UI.BACKGROUND_DARK = 6D5090
+UI.OUTLINE_DARK = 6D5090
+RARITY.1 = 004DFF
+RARITY.2 = 008026
+RARITY.3 = E70000
+RARITY.4 = 7D1A91
+BLIND.Small = 113488
+BLIND.Big = 61167D
+BLIND.Boss = B30000
+BLIND.won = 14682F
+MTP.MENU_BUTTON = E40303
+MTP.MOD_BUTTON = 4B0082
+MTP.LANG_BUTTON = 9400D3
+HAND_LEVELS.1 = EFEFEF
+HAND_LEVELS.2 = FF8A8A
+HAND_LEVELS.3 = FFB45C
+HAND_LEVELS.4 = FFF06B
+HAND_LEVELS.5 = 71E471
+HAND_LEVELS.6 = 7FA8FF
+HAND_LEVELS.7 = CD82ED
+]] },
+
+{ name = 'Banana', tint = { hue = 50, sat = 0.95 }, text = [[
+# Everything is banana. Chips are an unripe peel and Mult a ripe brown spot.
+BLACK = 3A2E0B
+L_BLACK = 604D13
+GREY = 8A7420
+JOKER_GREY = FFE135
+RED = B8742A
+MULT = AF5E13
+XMULT = AF5E13
+BLUE = 89AD0B
+CHIPS = ACD613
+GREEN = D7A100
+ORANGE = A67C00
+FILTER = E8B800
+IMPORTANT = E8B800
+GOLD = EBAA00
+MONEY = F2C500
+BLIND_SIZE = D77817
+UI.TEXT_DARK = 3A2E0B
+UI.BACKGROUND_LIGHT = FFF5C2
+UI.BACKGROUND_DARK = C7A728
+UI.OUTLINE_DARK = C7A728
+BLIND.Small = 78620A
+BLIND.Big = 78620A
+BLIND.Boss = 673B07
+BLIND.won = 9B7E0F
+PURPLE = 9A7200
+RARITY.1 = 89AD0B
+RARITY.2 = D7A100
+RARITY.3 = AF5E13
+RARITY.4 = 673B07
+MTP.MENU_BUTTON = D7A100
+MTP.MOD_BUTTON = AA8100
+HAND_LEVELS.1 = FFF8DC
+HAND_LEVELS.2 = FFF1A8
+HAND_LEVELS.3 = FFE66D
+HAND_LEVELS.4 = F9D84A
+HAND_LEVELS.5 = E8C02E
+HAND_LEVELS.6 = D9A31E
+HAND_LEVELS.7 = C08A2A
+]] },
+
+{ name = 'Color Blind', text = [[
+# Okabe-Ito: a palette that stays distinct under red-green and blue-yellow color blindness.
+RED = D55E00
+MULT = E8700F
+XMULT = E8700F
+BLUE = 0072B2
+CHIPS = 1F8FD6
+GREEN = 009E73
+PALE_GREEN = 0A8F6A
+CHANCE = 2BC79A
+ORANGE = B5651D
+FILTER = E69F00
+IMPORTANT = E69F00
+GOLD = E6B800
+MONEY = F0E442
+PURPLE = 8E5BA6
+BLIND_SIZE = E8700F
+SECONDARY_SET.Tarot = CC79A7
+SECONDARY_SET.Planet = 56B4E9
+SECONDARY_SET.Spectral = 0072B2
+SECONDARY_SET.Edition = 009E73
+SECONDARY_SET.Voucher = E69F00
+RARITY.1 = 0072B2
+RARITY.2 = 009E73
+RARITY.3 = D55E00
+RARITY.4 = CC79A7
+SO_1.Hearts = D55E00
+SO_1.Diamonds = E69F00
+SO_1.Clubs = 0072B2
+SO_2.Hearts = D55E00
+SO_2.Diamonds = E69F00
+SO_2.Clubs = 0072B2
+BLIND.Small = 3D6E7A
+BLIND.Big = 3D6E7A
+BLIND.Boss = D55E00
+MTP.MENU_BUTTON = 56B4E9
+MTP.MOD_BUTTON = CC79A7
+HAND_LEVELS.1 = EFEFEF
+HAND_LEVELS.2 = 9FD4F2
+HAND_LEVELS.3 = 66C9A9
+HAND_LEVELS.4 = F5EE8A
+HAND_LEVELS.5 = F2C04D
+HAND_LEVELS.6 = EE9A5C
+HAND_LEVELS.7 = DFA3C8
+]] },
+
+{ name = 'Pink Ribbon', tint = { hue = 335, sat = 0.7 }, text = [[
+# Breast cancer awareness pink.
+BLACK = 3A1F2E
+L_BLACK = 693551
+GREY = 7C4B64
+JOKER_GREY = FFB4CE
+RED = F30059
+MULT = FF2D74
+XMULT = FF2D74
+BLUE = 9532BF
+CHIPS = AC49D6
+GREEN = FD3E77
+ORANGE = C10055
+FILTER = FF4F8B
+IMPORTANT = FF4F8B
+GOLD = F82D74
+MONEY = FF5D97
+PURPLE = 82319D
+BLIND_SIZE = FF6F9E
+UI.TEXT_DARK = 3A1F2E
+UI.BACKGROUND_LIGHT = FFE1EB
+UI.BACKGROUND_DARK = BF517C
+UI.OUTLINE_DARK = BF517C
+RARITY.1 = 9532BF
+RARITY.2 = FD3E77
+RARITY.3 = DA0056
+RARITY.4 = FF538D
+BLIND.Small = 782350
+BLIND.Big = 782350
+BLIND.Boss = DA0056
+BLIND.won = 622546
+MTP.MENU_BUTTON = FF538D
+MTP.MOD_BUTTON = 9532BF
+HAND_LEVELS.1 = FFF0F5
+HAND_LEVELS.2 = FBD3E3
+HAND_LEVELS.3 = F8B4CF
+HAND_LEVELS.4 = F48FB1
+HAND_LEVELS.5 = F06292
+HAND_LEVELS.6 = EC407A
+HAND_LEVELS.7 = FF1F75
+]] },
+
+{ name = 'Reversed', text = [[
+# Chips are red and Mult is blue. Good luck.
+RED = 009DFF
+MULT = 009DFF
+XMULT = 009DFF
+BLUE = FE5F55
+CHIPS = FE5F55
+RARITY.1 = B26CBB
+RARITY.2 = FE5F55
+RARITY.3 = 4BC292
+RARITY.4 = 009DFF
+HAND_LEVELS.1 = CAA0EF
+HAND_LEVELS.2 = F87D75
+HAND_LEVELS.3 = FFC052
+HAND_LEVELS.4 = FAE37E
+HAND_LEVELS.5 = 65EFAF
+HAND_LEVELS.6 = 95ACFF
+HAND_LEVELS.7 = EFEFEF
+]] },
+
+{ name = 'Synthwave', text = [[
+# Neon pink and cyan over a midnight purple grid.
+BLACK = 1B1035
+L_BLACK = 3E2871
+GREY = 563991
+JOKER_GREY = FF2E97
+RED = FC0A7E
+MULT = FF2E97
+XMULT = FF2E97
+BLUE = 0097B2
+CHIPS = 00E5FF
+GREEN = 7927FF
+ORANGE = C60C97
+FILTER = FFD319
+IMPORTANT = FFD319
+GOLD = FF9E2C
+MONEY = FFD319
+PURPLE = 7927FF
+BLIND_SIZE = FF2E97
+UI.TEXT_DARK = 1B1035
+UI.BACKGROUND_LIGHT = E8D9FF
+UI.BACKGROUND_DARK = 6640AF
+UI.OUTLINE_DARK = 6640AF
+RARITY.1 = 00B8D4
+RARITY.2 = 7927FF
+RARITY.3 = FF2E97
+RARITY.4 = FF9E2C
+BLIND.Small = 290560
+BLIND.Big = 290560
+BLIND.Boss = B3006E
+BLIND.won = 190A3B
+MTP.MENU_BUTTON = 00B8D4
+MTP.MOD_BUTTON = 7927FF
+HAND_LEVELS.1 = F2E9FF
+HAND_LEVELS.2 = 9AF3FF
+HAND_LEVELS.3 = 4FE3FF
+HAND_LEVELS.4 = FFE066
+HAND_LEVELS.5 = FFAA4D
+HAND_LEVELS.6 = FF7AC2
+HAND_LEVELS.7 = FF3DA5
+]] },
+
+{ name = 'Matrix', tint = { hue = 130, sat = 0.95 }, text = [[
+# Green phosphor on black.
+BLACK = 050A05
+L_BLACK = 193219
+GREY = 274C27
+JOKER_GREY = 00FF41
+UI.TEXT_LIGHT = D4FFD4
+RED = 0BB22F
+MULT = 39FF14
+XMULT = 39FF14
+BLUE = 006818
+CHIPS = 00C832
+GREEN = 0BB22F
+ORANGE = 09651E
+FILTER = 39FF14
+IMPORTANT = 39FF14
+GOLD = 7CFC00
+MONEY = 7CFC00
+BLIND_SIZE = 39FF14
+UI.TEXT_DARK = 031A08
+UI.BACKGROUND_LIGHT = D0FFD0
+UI.BACKGROUND_DARK = 237634
+UI.OUTLINE_DARK = 237634
+BLIND.Small = 001D06
+BLIND.Big = 001D06
+BLIND.Boss = 006818
+BLIND.won = 0B1C0B
+PURPLE = 09651E
+RARITY.1 = 006818
+RARITY.2 = 048A24
+RARITY.3 = 0BB22F
+RARITY.4 = 00A82A
+MTP.MENU_BUTTON = 0BB22F
+MTP.MOD_BUTTON = 09651E
+HAND_LEVELS.1 = D4FFD4
+HAND_LEVELS.2 = B0FFB8
+HAND_LEVELS.3 = 8CFF99
+HAND_LEVELS.4 = 66FF7A
+HAND_LEVELS.5 = 39FF5A
+HAND_LEVELS.6 = 1FE048
+HAND_LEVELS.7 = 00C832
+]] },
+
+{ name = 'Halloween', text = [[
+# Pumpkin orange and witch purple.
+BLACK = 1A1420
+L_BLACK = 3F2D4B
+GREY = 574063
+JOKER_GREY = FF7518
+RED = EC5C00
+MULT = FF7518
+XMULT = FF7518
+BLUE = 6C1AB0
+CHIPS = 9F38F3
+GREEN = 45AC18
+CHANCE = 75E732
+ORANGE = 881111
+FILTER = FFB000
+IMPORTANT = FFB000
+GOLD = FFB000
+MONEY = FFC94D
+PURPLE = 6C1AB0
+BLIND_SIZE = FF7518
+UI.TEXT_DARK = 1A1420
+UI.BACKGROUND_DARK = 704A8A
+UI.OUTLINE_DARK = 704A8A
+RARITY.1 = 6C1AB0
+RARITY.2 = 45AC18
+RARITY.3 = EC5C00
+RARITY.4 = CC00AE
+BLIND.Small = 3D1851
+BLIND.Big = 3D1851
+BLIND.Boss = CE3C00
+BLIND.won = 1A1123
+MTP.MENU_BUTTON = FF7518
+MTP.MOD_BUTTON = 6C1AB0
+HAND_LEVELS.1 = F2EAF5
+HAND_LEVELS.2 = C9A6E8
+HAND_LEVELS.3 = A77BDB
+HAND_LEVELS.4 = 9FE07A
+HAND_LEVELS.5 = FFC94D
+HAND_LEVELS.6 = FF9A4D
+HAND_LEVELS.7 = FF7518
+]] },
+
+{ name = 'Christmas', text = [[
+# Pine, holly and gold.
+BLACK = 0F2A1A
+L_BLACK = 245033
+GREY = 356847
+JOKER_GREY = F2F2F2
+RED = D80023
+MULT = FC0C2A
+XMULT = FC0C2A
+BLUE = 0F8A49
+CHIPS = 2CC166
+GREEN = C38B00
+ORANGE = 8B0000
+FILTER = FFD700
+IMPORTANT = FFD700
+GOLD = ECBC1F
+MONEY = FFD700
+BLIND_SIZE = FC0C2A
+UI.TEXT_DARK = 0F2A1A
+UI.BACKGROUND_LIGHT = F5F5F5
+UI.BACKGROUND_DARK = 629779
+UI.OUTLINE_DARK = 629779
+RARITY.1 = 0F8A49
+RARITY.2 = C38B00
+RARITY.3 = D80023
+RARITY.4 = 82319D
+BLIND.Small = 0A5D2B
+BLIND.Big = 0A5D2B
+BLIND.Boss = AD001C
+BLIND.won = 154325
+MTP.MENU_BUTTON = D80023
+MTP.MOD_BUTTON = 0F8A49
+HAND_LEVELS.1 = F5F5F5
+HAND_LEVELS.2 = A8E0BC
+HAND_LEVELS.3 = 6FCC92
+HAND_LEVELS.4 = FFE680
+HAND_LEVELS.5 = F5C842
+HAND_LEVELS.6 = F58A93
+HAND_LEVELS.7 = E85A68
+]] },
+
+{ name = 'Deep Sea', text = [[
+# Coral and current over the deep.
+BLACK = 06233A
+L_BLACK = 0E4972
+GREY = 1F6089
+JOKER_GREY = 7FDBFF
+RED = FF4433
+MULT = FF6F61
+XMULT = FF6F61
+BLUE = 0081B8
+CHIPS = 00A8E8
+GREEN = 0BB7A2
+CHANCE = 16DCC9
+ORANGE = 056FBE
+FILTER = FFD166
+IMPORTANT = FFD166
+GOLD = FCCC57
+MONEY = FFD166
+PURPLE = 493BE3
+BLIND_SIZE = FF6F61
+UI.TEXT_DARK = 06233A
+UI.BACKGROUND_LIGHT = C9F1FF
+UI.BACKGROUND_DARK = 2D80B1
+UI.OUTLINE_DARK = 2D80B1
+RARITY.1 = 0081B8
+RARITY.2 = 0BB7A2
+RARITY.3 = FF4433
+RARITY.4 = 9948FA
+BLIND.Small = 005377
+BLIND.Big = 005377
+BLIND.Boss = D83324
+BLIND.won = 003C66
+MTP.MENU_BUTTON = 16DCC9
+MTP.MOD_BUTTON = 493BE3
+HAND_LEVELS.1 = E6F7FF
+HAND_LEVELS.2 = A6E6FF
+HAND_LEVELS.3 = 6FD3F5
+HAND_LEVELS.4 = 7EE8D9
+HAND_LEVELS.5 = FFE0A3
+HAND_LEVELS.6 = FFA899
+HAND_LEVELS.7 = FF7F70
+]] },
+}
+
+for _, t in ipairs(MTP.STOCK) do MTP.STOCK[t.name:lower()] = t end
+
+function MTP.stock(name)
+    return type(name) == 'string' and MTP.STOCK[name:lower()] or nil
+end
+
+-- The stock theme as overrides against what this install has registered right now, so its
+-- tint reaches modded colors too.
+function MTP.stock_overrides(theme)
+    local out = {}
+    if theme.tint then
+        for key, e in pairs(MTP.entries) do
+            out[key] = MTP.to_hex(tinted(e.default, theme.tint))
+        end
+    end
+    local text = MTP.decode(theme.text) or {}
+    for k, v in pairs(text) do out[k] = v end
+    return out
+end

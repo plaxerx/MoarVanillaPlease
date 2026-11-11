@@ -14,7 +14,7 @@ return {
             ch_c_mvp_half_a_hand    = { "Can only select {C:attention}3{} cards at a time" },
             ch_c_mvp_slow_hands     = { "A big hand, but few to play. Play it slowly" },
             ch_c_mvp_suit_up        = { "Played hands must contain all 4 suits" },
-            ch_c_mvp_one_trick      = { "Jokers you gain fill every slot with copies of itself. Selling one sells all copies" },
+            ch_c_mvp_one_trick      = { "A Joker you gain fills every slot with copies of itself. Selling one sells all copies" },
             ch_c_mvp_all_perishable = { "All Jokers are {C:eternal}Perishable{}" },
             ch_c_mvp_joker_draft    = { "Jokers are automatically sold for full value after each Boss Blind" },
             ch_c_mvp_poker_purist   = { "Each hand must beat the last played poker hand. {C:inactive}(Resets each round)" },
@@ -52,8 +52,33 @@ return {
         },
     },
     descriptions = {
-        -- MoarStakesPlease
+        Blind = {
+            -- MoarChallengesPlease
+            -- The Wall at Baby's First Balatro's normal Boss size (challenges.lua, 51).
+            bl_mvp_baby_wall = {
+                name = "The Wall",
+                text = { "No ability" },
+            },
+        },
+        Sleeve = {
+            -- Pinochle
+            sleeve_mvp_prismatic_alt = {
+                name = "Prismatic Sleeve",
+                text = {
+                    "Provides the upside of each sleeve",
+                    "{C:red}Achievements are disabled{}",
+                },
+            },
+            sleeve_mvp_vanilla_alt = {
+                name = "Vanilla Sleeve",
+                text = {
+                    "Only {C:attention}vanilla content{}",
+                    "can appear",
+                },
+            },
+        },
         Stake = {
+            -- MoarStakesPlease
             stake_mvp_platinum = {
                 name = "Platinum Stake",
                 text = {
@@ -124,6 +149,7 @@ return {
             },
         },
         Other = {
+            -- MoarStakesPlease
             mvp_platinum_sticker = {
                 name = "Platinum Sticker",
                 text = { "Used to win on", "{C:attention}Platinum Stake{} difficulty" },
@@ -155,23 +181,6 @@ return {
             mvp_impossible_sticker = {
                 name = "Impossible Sticker",
                 text = { "Used to win on", "{C:attention}Impossible Stake{} difficulty {C:inactive}(wtf??){}" },
-            },
-        },
-        -- Pinochle
-        Sleeve = {
-            sleeve_mvp_prismatic_alt = {
-                name = "Prismatic Sleeve",
-                text = {
-                    "Provides the upside of each sleeve",
-                    "{C:red}Achievements are disabled{}",
-                },
-            },
-            sleeve_mvp_vanilla_alt = {
-                name = "Vanilla Sleeve",
-                text = {
-                    "Only {C:attention}vanilla content{}",
-                    "can appear",
-                },
             },
         },
     },

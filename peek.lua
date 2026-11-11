@@ -53,15 +53,32 @@ end
 -- Card shop simulation -- we do this to "generate" what potentially comes next, not 100% reliable
 --============================================================
 
+local EDITION_TAGS = {
+    ['Foil Tag'] = 'e_foil', ['Holographic Tag'] = 'e_holo',
+    ['Polychrome Tag'] = 'e_polychrome', ['Negative Tag'] = 'e_negative',
+}
+
 local function edition_name(ed)
-    if type(ed) ~= 'table' then return nil end
-    for _, k in ipairs({ 'negative', 'polychrome', 'holo', 'foil' }) do
-        if ed[k] then return k end
-    end
-    return next(ed)
+    if type(ed) == 'table' then ed = next(ed) and ('e_' .. next(ed)) end   -- vanilla-style {foil = true}
+    if type(ed) ~= 'string' then return nil end
+    local ok, name = pcall(localize, { type = 'name_text', key = ed, set = 'Edition' })
+    if ok and name and name ~= '' and name ~= 'ERROR' then return name:lower() end
+    return (ed:gsub('^e_', ''))
 end
 
-local function sim_shop_card()
+-- Unspent edition Tags wait for the next editionless shop Joker (tag.lua store_joker_modify)
+local function pending_edition_tags()
+    local q = {}
+    for _, tag in ipairs(G.GAME.tags or {}) do
+        if not tag.triggered and tag.config and tag.config.type == 'store_joker_modify' then
+            if not EDITION_TAGS[tag.name] then break end
+            q[#q + 1] = EDITION_TAGS[tag.name]
+        end
+    end
+    return q
+end
+
+local function sim_shop_card(tag_q)
     local ante = G.GAME.round_resets.ante   
     G.GAME.spectral_rate = G.GAME.spectral_rate or 0
     local total_rate = G.GAME.joker_rate + G.GAME.playing_card_rate
@@ -112,15 +129,23 @@ local function sim_shop_card()
         front = pseudorandom_element(G.P_CARDS, pseudoseed('front' .. 'sho' .. ante))
     end
 
-    local edition, eternal, perishable, rental
+    local edition, eternal, perishable, rental, free
     if set == 'Joker' then
+        local center, mods, st = G.P_CENTERS[key] or {}, G.GAME.modifiers, SMODS.Stickers
+        eternal = mods.all_eternal and center.eternal_compat or nil
         local ep = pseudorandom('etperpoll' .. ante)
-        if G.GAME.modifiers.enable_eternals_in_shop and ep > 0.7 then eternal = true
-        elseif G.GAME.modifiers.enable_perishables_in_shop and ep > 0.4 and ep <= 0.7 then perishable = true end
-        if G.GAME.modifiers.enable_rentals_in_shop and pseudorandom('ssjr' .. ante) > 0.7 then
+        if mods.enable_eternals_in_shop and ep > 0.7 and not st.eternal.should_apply then
+            eternal = center.eternal_compat or eternal
+        elseif mods.enable_perishables_in_shop and ep > 0.4 and ep <= 0.7 and not st.perishable.should_apply then
+            perishable = center.perishable_compat and not eternal or nil
+        end
+        if mods.enable_rentals_in_shop and pseudorandom('ssjr' .. ante) > 0.7 and not st.rental.should_apply then
             rental = true
         end
         edition = poll_edition('edi' .. 'sho' .. ante)
+        if not edition and tag_q[1] then
+            edition, free = table.remove(tag_q, 1), true
+        end
     end
 
     if (set == 'Base' or set == 'Enhanced') and G.GAME.used_vouchers['v_illusion']
@@ -133,7 +158,7 @@ local function sim_shop_card()
         key = key,
         front = front and front.value and { value = front.value, suit = front.suit } or nil,
         edition = edition_name(edition),
-        eternal = eternal, perishable = perishable, rental = rental,
+        eternal = eternal, perishable = perishable, rental = rental, free = free,
     }
 end
 
@@ -146,28 +171,48 @@ local function shallow_copy(t)
     return o
 end
 
+local function restore(t, saved)
+    for k in pairs(t) do if saved[k] == nil then t[k] = nil end end
+    for k, v in pairs(saved) do t[k] = v end
+end
+
 function MVP.predict_shop()
     if not (G.GAME and G.GAME.pseudorandom and G.GAME.current_round) then return {} end
     local depth = peek_depth()
     local joker_max = math.max(1, MVP.plain(G.GAME.shop and G.GAME.shop.joker_max) or 2)
-    
-    local saved_pr = shallow_copy(G.GAME.pseudorandom)
+
+    local used = G.GAME.used_jokers
+    local saved_pr, saved_used = shallow_copy(G.GAME.pseudorandom), shallow_copy(used)
+    local tag_q = pending_edition_tags()
+    local shelf = {}
+    for _, c in ipairs(G.shop_jokers.cards) do shelf[#shelf + 1] = c.config.center.key end
 
     local out = {}
-    pcall(function()
+    local ok, err = pcall(function()
         local cumulative = 0
         for r = 1, depth do
             cumulative = cumulative + reroll_cost(r)
+            -- Rerolled-away cards leave the pool; fresh ones join it (card.lua Card:remove / set_ability)
+            for _, k in ipairs(shelf) do
+                if not next(SMODS.find_card(k, true)) then used[k] = nil end
+            end
+            shelf = {}
             local cards = {}
             for _ = 1, joker_max do
-                cards[#cards + 1] = sim_shop_card()
+                local c = sim_shop_card(tag_q)
+                cards[#cards + 1] = c
+                if c.key then used[c.key] = true; shelf[#shelf + 1] = c.key end
             end
             out[r] = { cost = cumulative, cards = cards }
         end
     end)
+    if not ok then
+        out.error = true
+        sendWarnMessage('Peek stopped after reroll ' .. #out .. ': ' .. tostring(err), 'MoarVanillaPlease')
+    end
 
-    for k in pairs(G.GAME.pseudorandom) do if saved_pr[k] == nil then G.GAME.pseudorandom[k] = nil end end
-    for k, v in pairs(saved_pr) do G.GAME.pseudorandom[k] = v end
+    restore(G.GAME.pseudorandom, saved_pr)
+    restore(used, saved_used)
     return out
 end
 
@@ -185,14 +230,17 @@ local function set_colour(set)
     return map[set or 'Joker'] or G.C.WHITE
 end
 
-local function card_name(c)
+local function card_prefix(c)
     local bits = {}
     if c.edition then bits[#bits + 1] = '[' .. c.edition .. ']' end
+    if c.free then bits[#bits + 1] = '[free]' end
     if c.eternal then bits[#bits + 1] = '[eternal]' end
     if c.perishable then bits[#bits + 1] = '[perishable]' end
     if c.rental then bits[#bits + 1] = '[rental]' end
-    local prefix = #bits > 0 and (table.concat(bits, ' ') .. ' ') or ''
+    return #bits > 0 and (table.concat(bits, ' ') .. ' ') or ''
+end
 
+local function card_name(c)
     if c.set == 'Base' or c.set == 'Default' or c.set == 'Enhanced' then
         local name = c.front and (tostring(c.front.value) .. ' of ' .. tostring(c.front.suit))
             or 'Random Playing Card'
@@ -200,16 +248,16 @@ local function card_name(c)
             local center = G.P_CENTERS[c.key]
             if center and center.name then name = name .. ' (' .. center.name .. ')' end
         end
-        return prefix .. name
+        return name
     end
 
-    if not c.key then return prefix .. '?' end
+    if not c.key then return '?' end
     local ok, name = pcall(function()
         return localize{ type = 'name_text', key = c.key, set = c.set or 'Joker' }
     end)
-    if ok and name and name ~= '' and name ~= 'ERROR' then return prefix .. name end
+    if ok and name and name ~= '' and name ~= 'ERROR' then return name end
     local center = G.P_CENTERS[c.key]
-    return prefix .. ((center and center.name) or c.key)
+    return (center and center.name) or c.key
 end
 
 function G.UIDEF.mvp_peek_store(rerolls)
@@ -226,10 +274,16 @@ function G.UIDEF.mvp_peek_store(rerolls)
         }}
         for _, c in ipairs(info.cards) do
             rows[#rows + 1] = { n = G.UIT.R, config = { align = 'cl', padding = 0.015 }, nodes = {
-                { n = G.UIT.T, config = { text = '  ' .. card_name(c), scale = 0.3,
-                                          colour = set_colour(c.set) } },
+                { n = G.UIT.T, config = { text = '  ' .. card_prefix(c), scale = 0.3,
+                                          colour = c.edition and G.C.DARK_EDITION or set_colour(c.set) } },
+                { n = G.UIT.T, config = { text = card_name(c), scale = 0.3, colour = set_colour(c.set) } },
             }}
         end
+    end
+    if rerolls.error then
+        rows[#rows + 1] = { n = G.UIT.R, config = { align = 'cm', padding = 0.1 }, nodes = {
+            { n = G.UIT.T, config = { text = 'A modded card stopped the peek here', scale = 0.3, colour = G.C.RED } },
+        }}
     end
     if #rows == 0 then
         rows[1] = { n = G.UIT.R, config = { align = 'cm', padding = 0.1 }, nodes = {
@@ -266,7 +320,7 @@ function G.UIDEF.mvp_peek_store(rerolls)
             }},
             body,
             { n = G.UIT.R, config = { align = 'cm', padding = 0.04, maxw = 7 }, nodes = {
-                { n = G.UIT.T, config = { text = 'Assumes you only reroll (no buying, no Tags).', scale = 0.28, colour = G.C.UI.TEXT_INACTIVE } },
+                { n = G.UIT.T, config = { text = 'Assumes you only reroll (no buying).', scale = 0.28, colour = G.C.UI.TEXT_INACTIVE } },
             }},
         },
     })

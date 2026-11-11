@@ -1,4 +1,16 @@
-# Moar Vanilla Please - lovely patches (the interest step)
+# Moar Vanilla Please - lovely patches, one block per component mod.
+#
+# NB: lovely re-patches from the INSTALLED copy at game launch - a running game must be
+# restarted for this to take effect.
+
+[manifest]
+version = "1.0.0"
+priority = 10
+
+# ============================================================
+# MoarStakesPlease
+# ============================================================
+# Moar Stakes Please - lovely patches (the interest step)
 #
 # Vanilla hardcodes the $5 interest step in FOUR inline spots: the payout, the round-eval
 # row, the shop indicator's "per $5" label, and - easy to miss - the `dollars >= 5` gate that
@@ -17,11 +29,6 @@
 # NB: lovely re-patches from the INSTALLED copy at game launch - a running game must be
 # restarted for this to take effect.
 
-[manifest]
-version = "1.0.0"
-priority = 10
-
-# --- payout (state_events.lua) ---
 [[patches]]
 [patches.regex]
 target = "functions/state_events.lua"
@@ -73,6 +80,18 @@ target = "functions/common_events.lua"
 pattern = "key = 'interest', vars = \\{G\\.GAME\\.interest_amount, 5, G\\.GAME\\.interest_amount\\*G\\.GAME\\.interest_cap/5\\}"
 position = "at"
 payload = "key = 'interest', vars = {G.GAME.interest_amount, MVP.interest_step(), G.GAME.interest_amount*G.GAME.interest_cap/5}"
+
+# ============================================================
+# ErraticMode
+# ============================================================
+# Erratic Mode - lovely patches
+#
+# The Mercy Rule mutation halves the Boss requirement in Lua (erratic.lua Blind:set_blind),
+# but the blind-SELECT screen computes the shown requirement inline and never sees it, so the
+# preview would read the full amount. Gated on the mutation flag.
+#
+# NB: lovely re-patches from the INSTALLED copy at game launch - a running game must be
+# restarted for this to take effect.
 
 [[patches]]
 [patches.regex]
