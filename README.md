@@ -1,48 +1,36 @@
 # Moar Vanilla Please
 
-All seven of my [Balatro](https://www.playbalatro.com/) mods in one package. Everything here
-extends the base game along the lines it already runs on, without reinventing how Balatro
-works.
+All seven of my vanilla-friendly [Balatro](https://www.playbalatro.com/) mods in one package. Everything here
+extends the base game without major content additions works and is intended to play as a companion to vanilla
+or enhancement for content mods through difficulty scaling and play metrics.
 
-**Alpha.** Balance and content are still moving.
+**Alpha.** Balance and content are constantly evolving.
 
 ## What's included
 
 | Content | Effect |
 |---|---|
-| **31 challenges** | Numbers 21–51, continuing the vanilla list. Economy squeezes, hand restrictions and full-run twists |
-| **8 stakes above Gold** | Platinum, Titanium, Diamond, Legendary, Mythic, Radiant, Ascendant, Impossible |
-| **Erratic Mode** | Start on a random deck, stake and sleeve with 0–8 rolled mutations drawn from a pool of 100 |
-| **Prismatic Deck** | Every vanilla deck's upside at once |
-| **Prismatic Sleeve** | Every vanilla sleeve's upside at once |
-| **Vanilla Deck** | Only vanilla Jokers can appear |
-| **Vanilla Sleeve** | Only vanilla Consumables, Vouchers and Tags. Together with the Vanilla Deck, only vanilla content |
-| **NANEINF Lite** | A sandbox challenge with easier access to endless runs |
-| **Ensign / Commander / Captain** | Amulet-only challenges scoring with `+`, `^` and `^^`, each with custom Ante scaling |
-| **Peek Store** | Shows what the next few shop rerolls hold. Off by default |
-| **Themes** | Recolor the game. Every color its menus, panels, badges and blinds use sits in one editable palette under **Settings → Video → Themes**, with stock themes, saved themes and share codes |
-| **Stats** | A live **Run Info → Stats** tab, a per-profile **Career Stats** page (deck-by-stake completion grid, per-Joker and per-Boss breakdowns, full run history), and extra rows on the Win and Game Over screens |
-| **Steady Frames** | Keeps Lua's garbage collector ahead of the game so the frame rate holds over a long session |
+| **31 new challenges** | Vanilla-friendly challenges that add new flavors to the current challenge list including a practice NANEINF mode and new scoring modes |
+| **8 stakes above Gold** | Platinum, Titanium, Diamond, Legendary*, Mythic, Radiant, Ascendant, Impossible** |
+| **Erratic Mode** | Start on a random deck, stake and sleeve (if [Card Sleeves](https://github.com/larswijn/CardSleeves) is installed) with rolled mutations drawn from a pool of 100 |
+| **Prismatic Deck** | A new deck that applies every vanilla deck's upside at once |
+| **Prismatic Sleeve** | (if [Card Sleeves](https://github.com/larswijn/CardSleeves) is installed) Every vanilla deck sleeves' upsides at once |
+| **Vanilla Deck** | Modded content fixer where only vanilla Jokers will appear |
+| **Vanilla Sleeve** | (if [Card Sleeves](https://github.com/larswijn/CardSleeves) is installed) Only vanilla Consumables, Vouchers and Tags. Together with the Vanilla Deck, only vanilla content entirely |
+| **Peek Store** | Shows what the next few shop rerolls hold. Turned off by default (turn on in mod settings) |
+| **UI Themes** | Recolor the game! All menus, panels, badges and blinds are customizable with stock themes, saved themes, and import/export codes |
+| **More Stats** | New trackable stats such as deck-by-stake completion grid, per-Joker and per-Boss breakdowns, full run history, and extra statistics on the Win and Game Over screens |
+| **Steady Frames** | Balatro can frame drop considerably deep into the late game. This keeps Lua's garbage collector ahead of the game minimizing frame rate deterioration |
 
-Challenge 51 is **Baby's First Balatro** — a deliberately gentle version for a young child
-learning the loop. Jokers only ever add Chips, Mult or money, Boss Blinds have no ability,
-and nothing gets destroyed, retriggered or multiplied.
+*Legendary is intended to be the new ceiling of Vanilla Balatro
+**Impossible is designed to be defined. Good for Balatro mods that make the game too easy and properly scale modded power creep
 
-The stake ladder is its own progression. Legendary is the first real ceiling; the four above
-it are a different game.
-
-Themes and Stats never touch a run: they draw no RNG and move no cards, so a seeded run plays
-out exactly as it would without them. Their settings are the extra **Themes** and **Stats**
-tabs on this mod's page in the Mods menu.
-
-## Requirements
+## Required mods
 
 - [Steamodded](https://github.com/Steamodded/smods) `>=1.0.0~BETA-0400` (tested on 26.1002.0)
 - [Lovely](https://github.com/ethangreen-dev/lovely-injector)
 
 ## Recommended mods
-
-Public mods that make the game better to play, and that this one is tested alongside:
 
 - [Card Sleeves](https://github.com/larswijn/CardSleeves) — sleeves as a second deck modifier.
   Needed for the Prismatic and Vanilla sleeves, and lets Erratic Mode roll a sleeve
@@ -52,11 +40,8 @@ Public mods that make the game better to play, and that this one is tested along
   compact, stacked deck view, Joker area controls, a cap on score flames and other
   optimizations for long runs
 - [Amulet](https://github.com/frostice482/amulet) 3.5.4+ — big-number support for high-scoring
-  runs, a maintained fork of Talisman. Ensign, Commander and Captain appear only when it is
+  runs, a maintained fork of Talisman. New scoring methodology challenges only appear when this is
   installed
-
-[Galdur](https://github.com/Eremel/Galdur)'s run setup is built into Steamodded 26.x, so it is
-not needed on a current Steamodded.
 
 ## Installation
 
@@ -69,36 +54,27 @@ Copy the `MoarVanillaPlease` folder into your Balatro mods directory:
 Restart the game. Lovely patches are read from the installed copy at launch, so a running game
 will not pick up changes.
 
-## Split versions
+## Separated versions
 
-The same content is also published as smaller mods, for anyone who wants only part of it:
+The same content is also published as smaller mods should you want only pieces of this mod:
 
-- [MoarStakesPlease](https://github.com/plaxerx/MoarStakesPlease) — the stake ladder
-- [MoarChallengesPlease](https://github.com/plaxerx/MoarChallengesPlease) — the challenges
-- [ErraticMode](https://github.com/plaxerx/erraticmode) — the rolled mutations
-- [Pinochle](https://github.com/plaxerx/pinochle) — the decks, sleeves, sandbox challenges and
-  Peek Store
-- MoarThemesPlease — the theme editor
-- MoarStatsPlease — the stat tracker
+- [MoarStakesPlease](https://github.com/plaxerx/MoarStakesPlease) — the new stakes
+- [MoarChallengesPlease](https://github.com/plaxerx/MoarChallengesPlease) — the new challenges
+- [ErraticMode](https://github.com/plaxerx/erraticmode) — the random mode with mutations
+- [Pinochle](https://github.com/plaxerx/pinochle) — the decks, sandbox challenges, and peeking
+- MoarThemesPlease — the theme editor TBD
+- MoarStatsPlease — the stat tracker TBD
 - SteadyFrames — the garbage-collector pacing
 
-Those each declare a conflict with this mod, so **install this one or those, not both**.
-If both are present, Moar Vanilla Please wins and the others stay dormant.
-
-Saved themes are shared with the standalone Moar Themes Please (both read
-`%APPDATA%/Balatro/MoarThemesPlease/themes/`), and career stats live in the profile, so
-switching between the bundle and the split versions keeps both.
+These are incompatible when running with MoarVanillaPlease so **install these or this mod, not both**.
 
 ## Companion mod
 
-[Endless Engines](https://github.com/plaxerx/EndlessEngines) is a separate mod built alongside
-this one. The two are independent and use distinct key prefixes, so they can be installed
-together or on their own.
+[Endless Engines](https://github.com/plaxerx/EndlessEngines) is my content additions mod to service
+the lack of end game content in Balatro and diversify Endless Mode that is compatible with this mod.
 
 ## Credits
 
-Made by [plaxerx](https://github.com/plaxerx), with development assistance from
-[Claude](https://claude.ai).
+Made by [plaxerx](https://github.com/plaxerx), with development assistance from [Claude](https://claude.ai).
 
-Balatro is by LocalThunk. This mod is unofficial and not affiliated with the developer or
-publisher.
+Balatro is by LocalThunk. This mod is unofficial and not affiliated with the developer or publisher.
