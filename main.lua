@@ -109,7 +109,7 @@ end
 MVP.mod = SMODS.current_mod
 -- Fallback in case a SMODS build hasn't populated the config yet, so peek.lua never
 -- indexes nil.
-MVP.CFG = SMODS.current_mod.config or { peek_mode = 2, peek_depth = 5 }
+MVP.CFG = SMODS.current_mod.config or { peek_mode = 1, peek_depth = 5 }
 SMODS.current_mod.config = MVP.CFG
 
 local PEEK_MODE_OPTS = { 'Off', 'Endless & Seeded', 'Always (debug)' }
@@ -124,7 +124,7 @@ SMODS.current_mod.config_tab = function()
             create_option_cycle({
                 label = 'When available',
                 options = PEEK_MODE_OPTS,
-                current_option = math.min(3, math.max(1, cfg.peek_mode or 2)),
+                current_option = math.min(3, math.max(1, cfg.peek_mode or 1)),
                 w = 4.5, scale = 0.9, text_scale = 0.4,
                 ref_table = cfg, ref_value = 'peek_mode',
                 opt_callback = 'mvp_config_saved',
